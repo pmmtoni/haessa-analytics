@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4 p-4 bg-white shadow rounded form-container">
+  <h3 class="text-center mb-4">➕ Add New Component</h3>
+
+  <form method="POST" action="{{ url_for('add') }}">
+    <div class="row g-3">
+
+      <!-- Item No -->
+      <div class="col-md-3">
+        <label class="form-label">Item No</label>
+        <input type="text" name="Item_no" class="form-control" required>
+      </div>
+
+      <!-- Coach No -->
+      <div class="col-md-3">
+        <label class="form-label">Coach No</label>
+        <select name="Coach_no" class="form-select editable-select" required>
+          <option value="" disabled selected>Select Coach No</option>
+          {% for coach in coaches %}
+          <option value="{{ coach }}">{{ coach }}</option>
+          {% endfor %}
+        </select>
+        <small><a href="#" class="text-success add-option" data-target="Coach_no">➕ Add New</a></small>
+      </div>
+
+      <!-- Section -->
+      <div class="col-md-3">
+        <label class="form-label">Section</label>
+        <select name="Section" class="form-select editable-select">
+          <option value="" disabled selected>Select Section</option>
+          {% for section in sections %}
+          <option value="{{ section }}">{{ section }}</option>
+          {% endfor %}
+        </select>
+        <small><a href="#" class="text-success add-option" data-target="Section">➕ Add New</a></small>
+      </div>
+
+      <!-- Component -->
+      <div class="col-md-3">
+        <label class="form-label">Component</label>
+        <select name="Component" class="form-select editable-select" required>
+          <option value="" disabled selected>Select Component</option>
+          {% for comp in components %}
+          <option value="{{ comp }}">{{ comp }}</option>
+          {% endfor %}
+        </select>
+        <small><a href="#" class="text-success add-option" data-target="Component">➕ Add New</a></small>
+      </div>
+
+      <!-- Supplier -->
+      <div class="col-md-3">
+        <label class="form-label">Supplier</label>
+        <select name="Supplier" class="form-select editable-select">
+          <option value="" disabled selected>Select Supplier</option>
+          {% for s in suppliers %}
+          <option value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+        <small><a href="#" class="text-success add-option" data-target="Supplier">➕ Add New</a></small>
+      </div>
+
+      <!-- Quantity -->
+      <div class="col-md-3">
+        <label class="form-label">Quantity</label>
+        <input type="number" name="Quantity" class="form-control" min="1" value="1">
+      </div>
+
+      <!-- Lead Time -->
+      <div class="col-md-3">
+        <label class="form-label">Lead Time (days)</label>
+        <input type="number" name="Lead_time" class="form-control" min="0" value="0">
+      </div>
+
+      <!-- Dates -->
+      <div class="col-md-3">
+        <label class="form-label">CTED Order Date</label>
+        <input type="date" name="CTED_order_date" class="form-control">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">CTED Due Date</label>
+        <input type="date" name="CTED_due_date" class="form-control">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">HAESSA Order Date</label>
+        <input type="date" name="HAESSA_order_date" class="form-control">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">HAESSA Delivery Date</label>
+        <input type="date" name="HAESSA_delivery_date" class="form-control">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">HEASSA Pay Date</label>
+        <input type="date" name="HEASSA_pay_date" class="form-control">
+      </div>
+
+      <!-- Component Status -->
+      <div class="col-md-3">
+        <label class="form-label">Component Status</label>
+        <select name="Component_status" class="form-select">
+          <option value="">Select Status</option>
+          <option>On Time</option>
+          <option>Late</option>
+          <option>Overdue</option>
+          <option>Not Paid</option>
+          <option>Delivered</option>
+        </select>
+      </div>
+
+    </div>
+
+    <div class="mt-3">
+      <label class="form-label">Notes</label>
+      <textarea name="Notes" class="form-control" rows="2"></textarea>
+    </div>
+
+    <div class="mt-4 text-center">
+      <button type="submit" class="btn btn-success px-4 me-2">💾 Save Component</button>
+      <a href="{{ url_for('home') }}" class="btn btn-secondary px-4">🏠 Return Home</a>
+    </div>
+  </form>
+</div>
+
+<!-- Fix dropdown layering and modal stacking -->
+<style>
+.form-select, input, textarea {
+  position: relative;
+  z-index: 2050 !important;
+}
+.dropdown-menu.show {
+  z-index: 2060 !important;
+}
+.form-container {
+  overflow: visible !important;
+}
+.modal-backdrop {
+  z-index: 1050 !important;
+}
+</style>
+
+<!-- Allow adding new dropdown options -->
+<script>
+document.querySelectorAll('.add-option').forEach(link => {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    const fieldName = this.dataset.target;
+    const select = document.querySelector(`select[name="${fieldName}"]`);
+    const newValue = prompt(`Enter new value for ${fieldName}:`);
+    if (newValue && newValue.trim() !== "") {
+      const option = new Option(newValue, newValue, true, true);
+      select.add(option);
+    }
+  });
+});
+</script>
+
+<script>
+document.querySelector("form").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const formData = new FormData(form);
+
+  try {
+    const response = await fetch(form.action, {
+      method: "POST",
+      body: formData,
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    });
+    const result = await response.json();
+
+    if (result.success) {
+  showToast(result.message || "Added successfully!", "success");
+  localStorage.setItem("newComponentAdded", JSON.stringify(result.data));
+
+  // 🟢 Log the addition
+  addLogEntry("🟢 Added", `${result.data.Component} for Coach ${result.data.Coach_no}`, "success");
+
+  setTimeout(() => window.location.href = "{{ url_for('home') }}", 1000);
+}
+
+    // 🔹 Store new or updated component data in localStorage (trigger Home refresh)
+      localStorage.setItem(
+    "{{ 'newComponentAdded' if request.endpoint == 'add' else 'componentEdited' }}",
+    JSON.stringify(result.data || Object.fromEntries(formData))
+      );
+
+
+      // Optional: Redirect back to home automatically after a short delay
+      setTimeout(() => {
+        window.location.href = "{{ url_for('home') }}";
+      }, 1000);
+    } else {
+      showToast("⚠️ Something went wrong!", "danger");
+    }
+  } catch (err) {
+    showToast("❌ Error saving data!", "danger");
+  }
+});
+</script>
+
+
+{% endblock %}

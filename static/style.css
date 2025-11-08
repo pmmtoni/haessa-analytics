@@ -1,0 +1,118 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Oct 22 07:12:27 2025
+
+@author: Paul
+"""
+.detail-card {
+  background: #fefefe;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.detail-card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.detail-card th {
+  width: 250px;
+  background: #007bff;
+  color: white;
+  text-align: left;
+  padding: 8px;
+}
+
+.detail-card td {
+  padding: 8px;
+  border: 1px solid #ddd;
+}
+
+.actions {
+  margin-top: 20px;
+}
+
+.btn {
+  background: #007bff;
+  color: white;
+  padding: 8px 15px;
+  text-decoration: none;
+  border-radius: 6px;
+  margin-right: 8px;
+}
+
+.btn:hover {
+  background: #0056b3;
+}
+
+.btn.danger {
+  background: #dc3545;
+}
+
+.btn.print {
+  background: #28a745;
+}
+
+.btn.pdf {
+  background: #6f42c1;
+}
+
+.btn.pdf:hover {
+  background: #563d7c;
+}
+
+#autoRefresh {
+  transform: scale(1.2);
+  accent-color: #17a2b8;
+}
+
+label {
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+}
+
+/* 📊 Dashboard Summary */
+.summary-dashboard {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  margin: 20px 0;
+  gap: 15px;
+}
+
+.summary-card {
+  flex: 1 1 180px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  padding: 20px;
+  text-align: center;
+  color: white;
+  font-family: 'Segoe UI', sans-serif;
+  transition: transform 0.3s ease;
+}
+
+.summary-card:hover {
+  transform: translateY(-5px);
+}
+
+.summary-card h3 {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.summary-card p {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 0;
+}
+
+/* Card colors */
+.summary-card.total { background: #34495e; }
+.summary-card.pending { background: #f39c12; }
+.summary-card.in-progress { background: #17a2b8; }
+.summary-card.delivered { background: #28a745; }
+.summary-card.overdue { background: #dc3545; }

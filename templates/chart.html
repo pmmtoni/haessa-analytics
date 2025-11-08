@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4 bg-white p-4 shadow-sm rounded">
+  <h3 class="text-center mb-4">📈 Bar Chart — Components by Coach</h3>
+
+  <div class="text-center mb-4">
+    <canvas id="coachChart" height="130"></canvas>
+  </div>
+
+  <div class="text-center">
+    <a href="{{ url_for('home') }}" class="btn btn-secondary px-4">🏠 Return Home</a>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('coachChart');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: {{ labels|tojson }},
+    datasets: [
+      {
+        label: 'Overdue',
+        data: {{ overdue_data|tojson }},
+        backgroundColor: '#dc3545'
+      },
+      {
+        label: 'Late',
+        data: {{ late_data|tojson }},
+        backgroundColor: '#ffc107'
+      },
+      {
+        label: 'Unpaid',
+        data: {{ unpaid_data|tojson }},
+        backgroundColor: '#0dcaf0'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: { y: { beginAtZero: true } },
+    plugins: {
+      legend: { position: 'bottom' },
+      title: { display: true, text: 'Components Grouped by Coach No' }
+    }
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h3 class="text-center mb-4">🚆 Component Dashboard</h3>
+
+  <div class="d-flex justify-content-between mb-3">
+    {% if current_user.role in ['editor', 'admin'] %}
+      <a href="{{ url_for('add') }}" class="btn btn-success" id="add-component-btn">➕ Add Component</a>
+    {% endif %}
+    <a href="{{ url_for('analytics') }}" class="btn btn-outline-primary">📊 View Analytics</a>
+  </div>
+
+  <table id="componentTable" class="table table-striped table-bordered table-hover align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th>ID</th>
+        <th>Coach No</th>
+        <th>Component</th>
+        <th>Section</th>
+        <th>Supplier</th>
+        <th>Status</th>
+        <th>Due Date</th>
+        {% if current_user.role in ['editor', 'admin'] %}
+          <th>Actions</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in components %}
+      <tr id="row-{{ c.id }}">
+        <td>{{ c.id }}</td>
+        <td>{{ c.Coach_no }}</td>
+        <td>{{ c.Component }}</td>
+        <td>{{ c.Section }}</td>
+        <td>{{ c.Supplier }}</td>
+        <td>{{ c.Component_status }}</td>
+        <td>{{ c.CTED_due_date }}</td>
+        {% if current_user.role in ['editor', 'admin'] %}
+          <td>
+            <a href="{{ url_for('edit', id=c.id) }}" class="btn btn-sm btn-primary">✏️</a>
+            {% if current_user.role == 'admin' %}
+              <button class="btn btn-sm btn-danger delete-btn" data-id="{{ c.id }}">🗑️</button>
+            {% endif %}
+          </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DataTables -->
+<link href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+$(document).ready(function () {
+  const table = $('#componentTable').DataTable({
+    responsive: true,
+    pageLength: 10,
+    order: [[0, 'desc']]
+  });
+
+  // ✅ Listen for Add/Edit/Delete from other tabs
+  window.addEventListener("storage", (event) => {
+    if (!["newComponentAdded", "componentEdited", "componentDeleted"].includes(event.key)) return;
+    const data = JSON.parse(event.newValue);
+    if (!data) return;
+
+    if (event.key === "newComponentAdded") {
+      addRowToTable(data);
+      addLogEntry("🟢 Added", `${data.Component} for Coach ${data.Coach_no}`, "success");
+    } else if (event.key === "componentEdited") {
+      updateRowInTable(data);
+      addLogEntry("🟡 Edited", `${data.Component} (Coach ${data.Coach_no})`, "warning");
+    } else if (event.key === "componentDeleted") {
+      removeRowFromTable(data.id);
+      addLogEntry("🔴 Deleted", `Component ID ${data.id}`, "danger");
+    }
+  });
+
+  // ✅ Add new row dynamically
+  function addRowToTable(data) {
+    if ($(`#row-${data.id}`).length) return; // Avoid duplicates
+    const newRow = table.row.add([
+      data.id,
+      data.Coach_no,
+      data.Component,
+      data.Section,
+      data.Supplier,
+      data.Component_status,
+      data.CTED_due_date,
+      `<a href="/edit/${data.id}" class="btn btn-sm btn-primary">✏️</a>
+       {% if current_user.role == 'admin' %}
+       <button class='btn btn-sm btn-danger delete-btn' data-id='${data.id}'>🗑️</button>
+       {% endif %}`
+    ]).draw(false).node();
+    $(newRow).attr("id", `row-${data.id}`);
+    showToast(`✅ ${data.Component} added successfully!`, "success");
+  }
+
+  // ✅ Update row dynamically after Edit
+  function updateRowInTable(data) {
+    const row = $(`#row-${data.id}`);
+    if (row.length) {
+      table.row(row).data([
+        data.id,
+        data.Coach_no,
+        data.Component,
+        data.Section,
+        data.Supplier,
+        data.Component_status,
+        data.CTED_due_date,
+        `<a href="/edit/${data.id}" class="btn btn-sm btn-primary">✏️</a>
+         {% if current_user.role == 'admin' %}
+         <button class='btn btn-sm btn-danger delete-btn' data-id='${data.id}'>🗑️</button>
+         {% endif %}`
+      ]).draw(false);
+      showToast(`✏️ ${data.Component} updated successfully!`, "info");
+    }
+  }
+
+  // ✅ Remove row dynamically after Delete
+  function removeRowFromTable(id) {
+    const row = $(`#row-${id}`);
+    if (row.length) {
+      row.fadeOut(300, () => {
+        table.row(row).remove().draw(false);
+      });
+      showToast("🗑️ Component deleted", "danger");
+    }
+  }
+
+  // ✅ Handle AJAX Delete
+  $(document).on("click", ".delete-btn", async function () {
+    const id = $(this).data("id");
+    if (!confirm("Are you sure you want to delete this component?")) return;
+
+    try {
+      const response = await fetch(`/delete/${id}`, {
+        method: "POST",
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      });
+      const result = await response.json();
+      if (result.success) {
+        removeRowFromTable(id);
+        localStorage.setItem("componentDeleted", JSON.stringify({ id }));
+        addLogEntry("🔴 Deleted", `Component ID ${id}`, "danger");
+      } else {
+        showToast(result.message || "⚠️ Could not delete component", "warning");
+      }
+    } catch (err) {
+      showToast("❌ Error deleting component!", "danger");
+    }
+  });
+});
+</script>
+
+<style>
+/* --- Subtle Fade Animation for Deletes --- */
+tr.fade-out { transition: opacity 0.3s ease-out; opacity: 0; }
+
+/* --- Ensure modal or dropdowns appear above DataTable --- */
+.modal, .dropdown-menu, .ui-autocomplete {
+  z-index: 2000 !important;
+}
+
+/* --- Toasts (if not in base.html) --- */
+.toast-container {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  z-index: 2500;
+}
+</style>
+{% endblock %}
