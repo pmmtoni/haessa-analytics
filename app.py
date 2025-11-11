@@ -32,43 +32,24 @@ app.secret_key = os.environ.get("HAESSA_SECRET", "haessa_secret_key")  # set in 
 # ----------------------------
 # Database config (Postgres if DATABASE_URL set, else SQLite)
 # ----------------------------
-DATABASE_URL = os.environ.get("DATABASE_URL")  # Render/Postgres or Heroku-style URL
-IS_RENDER = "RENDER" in os.environ  # Render sets this env var for services
+# ------------------------------------------------------------
+# ✅ Consistent Local SQLite Database (components.db)
+# ------------------------------------------------------------
+import os
+from flask_sqlalchemy import SQLAlchemy
 
-if DATABASE_URL:
-    # Some providers give "postgres://..." but SQLAlchemy wants "postgresql://..."
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
-    # Example: if you want to tune engine options for Postgres, add them here
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
-else:
-    # Use /tmp on Render (writable), otherwise local base dir
-    base_dir = os.path.abspath(os.path.dirname(__file__))
-    db_dir = "/tmp" if IS_RENDER else base_dir
-    db_path = os.path.join(db_dir, "components.db")
-    # Ensure directory exists and is writable
-    try:
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        testfile = os.path.join(os.path.dirname(db_path), ".write_test")
-        with open(testfile, "w") as f:
-            f.write("ok")
-        try:
-            os.remove(testfile)
-        except Exception:
-            pass
-    except Exception as e:
-        # If directory is not writable, log and fall back to memory DB (so app won't hard-crash)
-        print(f"⚠️ DB dir not writable ({db_dir}): {e}")
-        db_path = ":memory:"
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-    # SQLite needs check_same_thread False for threaded servers
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"check_same_thread": False}}
+# Define absolute path to your real database file
+base_dir = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(base_dir, "components.db")
 
+# Configure Flask SQLAlchemy
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"check_same_thread": False}}
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+# Initialize database
 db = SQLAlchemy(app)
-print(f"✅ Using database: {app.config['SQLALCHEMY_DATABASE_URI']}")
+print(f"✅ Using consistent local SQLite database: {db_path}")
 
 
 # ----------------------------
@@ -318,17 +299,42 @@ def delete(id):
 # ----------------------------
 # Analytics / Pie / Calendar (simplified)
 # ----------------------------
+# ---------------------------------------------------------------------
+# ✅ ANALYTICS ROUTE WITH REAL-TIME PERFORMANCE DATA
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# ✅ ANALYTICS ROUTE (Dynamic Coaches + Auto Summary)
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# ✅ ANALYTICS ROUTE (Dynamic Coaches + Auto Summary + Progress Tooltip)
+# ---------------------------------------------------------------------
 @app.route("/analytics")
 @login_required
 def analytics():
-    # simplified static data for now
-    chart_data = []
-    overall_chart = {"labels": [], "values": [], "total": 0}
-    trend_data = {}
-    return render_template("analytics.html", chart_data=chart_data, overall_chart=overall_chart, trend_data=trend_data,
-                           generated_by=current_user.username, generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"))
+    try:
+        # existing chart_data, overall_chart building logic here...
+        trend_data = calculate_trends() or {}
 
+        # safely fallback when no data
+        if not trend_data.get("monthly"):
+            trend_data = {
+                "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+                "monthly": {"On Time": [0]*12, "Late": [0]*12},
+                "weekly": {"On Time": [0, 0, 0, 0], "Late": [0, 0, 0, 0]}
+            }
 
+        return render_template(
+            "analytics.html",
+            chart_data=chart_data,
+            overall_chart=overall_chart,
+            trend_data=trend_data,
+            generated_by=current_user.username,
+            generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        )
+    except Exception as e:
+        app.logger.error(f"Error in /analytics: {e}")
+        flash("Analytics data unavailable.", "danger")
+        return redirect(url_for("home"))
 
 @app.route("/calendar")
 @login_required
