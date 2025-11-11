@@ -27,6 +27,29 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
 
+# Detect if running on Render (Render environment sets this variable)
+IS_RENDER = os.environ.get("RENDER") is not None
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# ✅ Use /tmp on Render (only writable directory)
+if IS_RENDER:
+    DB_PATH = "/tmp/components.db"
+else:
+    DB_PATH = os.path.join(BASE_DIR, "components.db")
+
+# ✅ Make sure directory exists
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+# Log database path for debugging
+print(f"✅ Using database path: {DB_PATH}")
+
+
 # Detect Render environment (Render uses /tmp as writable directory)
 # Detect if running on Render (environment variable automatically set)
 IS_RENDER = os.environ.get("RENDER") is not None
