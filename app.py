@@ -314,29 +314,121 @@ def delete(id):
 @login_required
 def analytics():
     try:
-        # existing chart_data, overall_chart building logic here...
-        trend_data = calculate_trends() or {}
+        components = Components.query.all()
+        print(f"✅ Render DB path: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        print(f"✅ Components found: {len(components)}")
 
-        # safely fallback when no data
-        if not trend_data.get("monthly"):
-            trend_data = {
-                "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-                "monthly": {"On Time": [0]*12, "Late": [0]*12},
-                "weekly": {"On Time": [0, 0, 0, 0], "Late": [0, 0, 0, 0]}
-            }
+        def safe_date(v):
+            if not v:
+                return None
+            if isinstance(v, datetime):
+                return v.date()
+            for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y"]:
+                try:
+                    return datetime.strptime(v.strip(), fmt).date()
+                except Exception:
+                    continue
+            return None
+
+        # --- 1️⃣ Group by coach ---
+        coach_groups = {}
+        for c in components:
+            coach = c.Coach_no or "Unknown"
+            status = (c.Component_status or "Unknown").strip()
+            coach_groups.setdefault(coach, {}).setdefault(status, 0)
+            coach_groups[coach][status] += 1
+
+        chart_data = []
+        for coach, statuses in coach_groups.items():
+            labels = list(statuses.keys())
+            values = list(statuses.values())
+            total = sum(values)
+            chart_data.append({
+                "coach": coach,
+                "labels": labels,
+                "values": values,
+                "total": total
+            })
+
+        # --- 2️⃣ Overall chart ---
+        all_statuses = {}
+        for c in components:
+            status = (c.Component_status or "Unknown").strip()
+            all_statuses[status] = all_statuses.get(status, 0) + 1
+
+        overall_chart = {
+            "labels": list(all_statuses.keys()),
+            "values": list(all_statuses.values()),
+            "total": sum(all_statuses.values())
+        }
+
+        # --- 3️⃣ Dynamic monthly/weekly trends ---
+        monthly_counts = {m: {"On Time": 0, "Late": 0} for m in range(1, 13)}
+        weekly_counts = {w: {"On Time": 0, "Late": 0} for w in range(1, 5)}
+
+        for c in components:
+            due = safe_date(c.CTED_due_date)
+            delivered = safe_date(c.HAESSA_delivery_date)
+            if not due or not delivered:
+                continue
+            month = delivered.month
+            week = min((delivered.day - 1) // 7 + 1, 4)
+            if delivered <= due:
+                monthly_counts[month]["On Time"] += 1
+                weekly_counts[week]["On Time"] += 1
+            else:
+                monthly_counts[month]["Late"] += 1
+                weekly_counts[week]["Late"] += 1
+
+        monthly_labels = [datetime(2025, m, 1).strftime("%b") for m in range(1, 13)]
+        trend_data = {
+            "monthly": {
+                "On Time": [monthly_counts[m]["On Time"] for m in range(1, 13)],
+                "Late": [monthly_counts[m]["Late"] for m in range(1, 13)],
+            },
+            "weekly": {
+                "On Time": [weekly_counts[w]["On Time"] for w in range(1, 5)],
+                "Late": [weekly_counts[w]["Late"] for w in range(1, 5)],
+            },
+            "labels": monthly_labels
+        }
+
+        # --- 4️⃣ Performance summary ---
+        total_delivered = sum([monthly_counts[m]["On Time"] + monthly_counts[m]["Late"] for m in range(1, 13)])
+        total_ontime = sum([monthly_counts[m]["On Time"] for m in range(1, 13)])
+        performance_pct = round((total_ontime / total_delivered) * 100, 1) if total_delivered else 0
+
+        summary_color = (
+            "bg-success text-white"
+            if performance_pct >= 80 else
+            "bg-warning text-dark"
+            if performance_pct >= 50 else
+            "bg-danger text-white"
+        )
+
+        progress_tooltip = f"{total_ontime}/{total_delivered} components delivered on time"
+
+        performance_summary = (
+            f"✅ Overall Performance: {performance_pct}% On Time Deliveries "
+            f"({total_ontime}/{total_delivered} completed)"
+        )
 
         return render_template(
             "analytics.html",
             chart_data=chart_data,
             overall_chart=overall_chart,
             trend_data=trend_data,
+            performance_summary=performance_summary,
+            performance_pct=performance_pct,
+            progress_tooltip=progress_tooltip,
+            summary_color=summary_color,
             generated_by=current_user.username,
             generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         )
+
     except Exception as e:
-        app.logger.error(f"Error in /analytics: {e}")
-        flash("Analytics data unavailable.", "danger")
-        return redirect(url_for("home"))
+        print(f"❌ Error in /analytics: {e}")
+        return render_template("analytics.html", error="Analytics data unavailable.")
 
 @app.route("/calendar")
 @login_required
