@@ -20,7 +20,24 @@ from functools import wraps
 # ---------------------------------------------------------------------
 app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///C:/Users/Paul/compare_xlsx/pyscript/haessa_app/components.db"
+
+import os
+
+app = Flask(__name__)
+app.secret_key = "haessa_secret_key"
+
+# --- Dynamic DB path ---
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+if os.environ.get("RENDER"):  # Detect if running on Render
+    db_path = os.path.join("/tmp", "components.db")
+else:
+    db_path = os.path.join(BASE_DIR, "components.db")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
+
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
@@ -485,6 +502,17 @@ def create_users():
             )
     db.session.commit()
     return "✅ Default users created successfully!"
+
+with app.app_context():
+    db.create_all()
+    if not User.query.filter_by(username="admin").first():
+        admin = User(username="admin", role="admin")
+        admin.set_password("Admin@123")
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created: admin / Admin@123")
+
+
 
 # ---------------------------------------------------------------------
 # RUN APP
