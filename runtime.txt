@@ -1,8 +1,1 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 11 08:57:19 2025
-
-@author: Paul
-"""
-
-python-3.11.9
+python-3.11.9 
