@@ -27,95 +27,29 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
 
-import os
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash
-
 # Detect Render environment
 IS_RENDER = os.environ.get("RENDER") is not None
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-# ✅ Always use /tmp for Render, base dir for local
-if IS_RENDER:
-    DB_DIR = "/tmp"
-else:
-    DB_DIR = BASE_DIR
-
-DB_PATH = os.path.join(DB_DIR, "components.db")
-
-# ✅ Make absolutely sure /tmp exists and is writable
-try:
-    os.makedirs(DB_DIR, exist_ok=True)
-    testfile = os.path.join(DB_DIR, "test_write.tmp")
-    with open(testfile, "w") as f:
-        f.write("ok")
-    os.remove(testfile)
-    print(f"✅ Database directory verified: {DB_DIR}")
-except Exception as e:
-    print(f"⚠️ Cannot write to {DB_DIR}: {e}")
-
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
-
-# ✅ Force DB creation (critical for Render)
-with app.app_context():
-    try:
-        db.create_all()
-        from app import User  # import after db defined
-
-        if not User.query.filter_by(username="admin").first():
-            admin = User(username="admin", role="admin")
-            admin.password = generate_password_hash("Admin@123")
-            db.session.add(admin)
-            db.session.commit()
-            print("✅ Admin user created: admin / Admin@123")
-        print(f"✅ Database initialized at {DB_PATH}")
-    except Exception as e:
-        print(f"⚠️ Database initialization failed: {e}")
-
-
-# Detect if running on Render (Render environment sets this variable)
-IS_RENDER = os.environ.get("RENDER") is not None
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-# ✅ Use /tmp on Render (only writable directory)
+# ✅ Database setup
 if IS_RENDER:
     DB_PATH = "/tmp/components.db"
 else:
     DB_PATH = os.path.join(BASE_DIR, "components.db")
 
-# ✅ Make sure directory exists
+# Ensure writable directory
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
-
-# Log database path for debugging
-print(f"✅ Using database path: {DB_PATH}")
-
-
-# Detect Render environment (Render uses /tmp as writable directory)
-# Detect if running on Render (environment variable automatically set)
-IS_RENDER = os.environ.get("RENDER") is not None
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-# Render only allows writes in /tmp, so use that directory
-if IS_RENDER:
-    DB_PATH = "/tmp/components.db"
+# If PostgreSQL is added later, use DATABASE_URL environment variable
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL.replace("postgres://", "postgresql://")
 else:
-    DB_PATH = os.path.join(BASE_DIR, "components.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
 
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-# Ensure database exists
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-
+db = SQLAlchemy(app)
+print(f"✅ Using database: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 
 # ---------------------------------------------------------------------
@@ -131,7 +65,6 @@ login_manager.init_app(app)
 # ---------------------------------------------------------------------
 class User(UserMixin, db.Model):
     __tablename__ = "users"
-
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
@@ -151,7 +84,6 @@ def load_user(user_id):
 
 class Components(db.Model):
     __tablename__ = "components"
-
     id = db.Column(db.Integer, primary_key=True)
     Item_no = db.Column(db.String(50))
     Coach_no = db.Column(db.String(50))
@@ -169,7 +101,6 @@ class Components(db.Model):
     Notes = db.Column(db.String(200))
 
     def safe_date(self, value):
-        """Safely parse a date string into a date object."""
         if not value:
             return None
         if isinstance(value, datetime):
@@ -184,24 +115,26 @@ class Components(db.Model):
 
 
 # ---------------------------------------------------------------------
-# ✅ INITIALIZE DATABASE AND DEFAULT ADMIN
+# ✅ INITIALIZE DATABASE
 # ---------------------------------------------------------------------
 with app.app_context():
-    db.create_all()
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", role="admin")
-        admin.set_password("Admin@123")
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Admin user created: admin / Admin@123")
-    print(f"✅ Database ready at: {DB_PATH}")
+    try:
+        db.create_all()
+        if not User.query.filter_by(username="admin").first():
+            admin = User(username="admin", role="admin")
+            admin.set_password("Admin@123")
+            db.session.add(admin)
+            db.session.commit()
+            print("✅ Admin user created: admin / Admin@123")
+        print(f"✅ Database initialized at: {DB_PATH}")
+    except Exception as e:
+        print(f"⚠️ Database initialization failed: {e}")
 
 
 # ---------------------------------------------------------------------
 # ✅ ROLE DECORATOR
 # ---------------------------------------------------------------------
 def role_required(*roles):
-    """Decorator that restricts access based on user roles."""
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
@@ -216,11 +149,10 @@ def role_required(*roles):
 
 
 # ---------------------------------------------------------------------
-# ✅ GLOBAL CONTEXT FOR TEMPLATES
+# ✅ GLOBAL CONTEXT FOR ALL TEMPLATES
 # ---------------------------------------------------------------------
 @app.context_processor
 def inject_globals():
-    """Make datetime and current_app available to all templates."""
     return {'datetime': datetime, 'current_app': current_app}
 
 
@@ -266,7 +198,6 @@ def analytics():
 @app.route("/chart")
 @login_required
 def chart():
-    """Redirect to analytics (alias route)."""
     return redirect(url_for("analytics"))
 
 
@@ -398,33 +329,4 @@ def logout():
 @role_required("admin")
 def users():
     all_users = User.query.all()
-    return render_template("users.html", users=all_users)
-
-
-@app.route("/create_users")
-def create_users():
-    """Utility route to create default users."""
-    default_users = [
-        {"username": "viewer", "password": "viewer123_HAESSA", "role": "viewer"},
-        {"username": "editor", "password": "editor123_HAESSA", "role": "editor"},
-        {"username": "admin", "password": "Admin@123", "role": "admin"},
-    ]
-
-    for u in default_users:
-        if not User.query.filter_by(username=u["username"]).first():
-            user = User(
-                username=u["username"],
-                password=generate_password_hash(u["password"]),
-                role=u["role"]
-            )
-            db.session.add(user)
-
-    db.session.commit()
-    return "✅ Default users created successfully!"
-
-
-# ---------------------------------------------------------------------
-# ✅ RUN APP
-# ---------------------------------------------------------------------
-if __name__ == "__main__":
-    app.run(debug=True)
+    return render_tem_
