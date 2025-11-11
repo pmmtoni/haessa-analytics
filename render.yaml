@@ -1,24 +1,24 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 11 08:48:40 2025
-
-@author: Paul
-"""
-
 services:
   - type: web
     name: haessa-analytics
     env: python
-    region: oregon
     plan: free
+    region: frankfurt  # or 'oregon', 'singapore' — choose closest to you
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.10
       - key: RENDER
         value: "true"
+      - key: FLASK_ENV
+        value: "production"
+      - key: DEFAULT_ADMIN_PASSWORD
+        value: "Admin@123"
+      # IMPORTANT: Add DATABASE_URL from your Render PostgreSQL database below
+      # - key: DATABASE_URL
+      #   fromDatabase:
+      #     name: haessa-db
+      #     property: connectionString
+
 databases:
-  - name: haessa_db
-    databaseName: haessa_db
-    user: haessa_admin
+  - name: haessa-db
+    plan: free

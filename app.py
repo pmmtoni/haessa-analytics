@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 """
 HAESSA Component Dashboard
-Created on Oct 27, 2025
+Cleaned and simplified single-file Flask app.
+Created on Oct 27, 2025 (updated)
 @author: Paul
 """
 
 import os
-from datetime import datetime, timedelta, date
 from functools import wraps
+from datetime import datetime, timedelta, date
+from urllib.parse import urlparse, urljoin
+
 from flask import (
     Flask, render_template, request, redirect,
     url_for, flash, current_app
@@ -20,63 +23,77 @@ from flask_login import (
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-# ---------------------------------------------------------------------
-# ✅ APP CONFIGURATION
-# ---------------------------------------------------------------------
+# ----------------------------
+# App setup
+# ----------------------------
 app = Flask(__name__)
-app.secret_key = "haessa_secret_key"
+app.secret_key = os.environ.get("HAESSA_SECRET", "haessa_secret_key")  # set in ENV for prod
 
-# Detect if running on Render
-IS_RENDER = os.environ.get("RENDER") is not None
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-# ✅ Database setup
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# ----------------------------
+# Database config (Postgres if DATABASE_URL set, else SQLite)
+# ----------------------------
+DATABASE_URL = os.environ.get("DATABASE_URL")  # Render/Postgres or Heroku-style URL
+IS_RENDER = "RENDER" in os.environ  # Render sets this env var for services
 
 if DATABASE_URL:
-    # Render-provided PostgreSQL URL
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
+    # Some providers give "postgres://..." but SQLAlchemy wants "postgresql://..."
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+    # Example: if you want to tune engine options for Postgres, add them here
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 else:
-    # Local SQLite fallback
-    DB_PATH = os.path.join(BASE_DIR, "components.db")
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
+    # Use /tmp on Render (writable), otherwise local base dir
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    db_dir = "/tmp" if IS_RENDER else base_dir
+    db_path = os.path.join(db_dir, "components.db")
+    # Ensure directory exists and is writable
+    try:
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        testfile = os.path.join(os.path.dirname(db_path), ".write_test")
+        with open(testfile, "w") as f:
+            f.write("ok")
+        try:
+            os.remove(testfile)
+        except Exception:
+            pass
+    except Exception as e:
+        # If directory is not writable, log and fall back to memory DB (so app won't hard-crash)
+        print(f"⚠️ DB dir not writable ({db_dir}): {e}")
+        db_path = ":memory:"
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+    # SQLite needs check_same_thread False for threaded servers
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"check_same_thread": False}}
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-db = SQLAlchemy(app)
 
+db = SQLAlchemy(app)
 print(f"✅ Using database: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 
-# ---------------------------------------------------------------------
-# ✅ LOGIN MANAGER
-# ---------------------------------------------------------------------
+# ----------------------------
+# Login manager
+# ----------------------------
 login_manager = LoginManager()
 login_manager.login_view = "login"
 login_manager.init_app(app)
 
 
-# ---------------------------------------------------------------------
-# ✅ DATABASE MODELS
-# ---------------------------------------------------------------------
+# ----------------------------
+# Models
+# ----------------------------
 class User(UserMixin, db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default="viewer")
+    role = db.Column(db.String(20), default="viewer")  # viewer / editor / admin
 
     def set_password(self, password):
         self.password = generate_password_hash(password)
 
-    def check_password(self, password):
-        return check_password_hash(self.password, password)
-
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+    def check_password(self, raw_password):
+        return check_password_hash(self.password, raw_password)
 
 
 class Components(db.Model):
@@ -103,56 +120,85 @@ class Components(db.Model):
         if isinstance(value, datetime):
             return value.date()
         if isinstance(value, str):
-            for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y"]:
+            s = value.strip()
+            if not s:
+                return None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y"):
                 try:
-                    return datetime.strptime(value.strip(), fmt).date()
+                    return datetime.strptime(s, fmt).date()
                 except ValueError:
                     continue
         return None
 
 
-# ---------------------------------------------------------------------
-# ✅ INITIALIZE DATABASE
-# ---------------------------------------------------------------------
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        return User.query.get(int(user_id))
+    except Exception:
+        return None
+
+
+# ----------------------------
+# Initialize DB and default admin (safe)
+# ----------------------------
+def ensure_admin_exists():
+    try:
+        db.create_all()
+        if not User.query.filter_by(username="admin").first():
+            admin = User(username="admin", role="admin")
+            admin.set_password(os.environ.get("DEFAULT_ADMIN_PASSWORD", "Admin@123"))
+            db.session.add(admin)
+            db.session.commit()
+            print("✅ Admin user created: admin / (password from DEFAULT_ADMIN_PASSWORD or Admin@123)")
+    except Exception as e:
+        # don't crash app on startup; print helpful message
+        print(f"⚠️ Failed to initialize DB or create admin: {e}")
+
+
 with app.app_context():
-    db.create_all()
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", role="admin")
-        admin.set_password("Admin@123")
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Admin user created: admin / Admin@123")
-    print("✅ Database initialized successfully.")
+    ensure_admin_exists()
+    print("✅ Database initialization step completed.")
 
 
-# ---------------------------------------------------------------------
-# ✅ ROLE DECORATOR
-# ---------------------------------------------------------------------
+# ----------------------------
+# Utilities
+# ----------------------------
+def is_safe_redirect_url(target):
+    """Allow only same-host redirects to prevent open redirect vulnerabilities."""
+    if not target:
+        return False
+    host_url = request.host_url  # includes trailing slash
+    test_url = urljoin(host_url, target)
+    parsed = urlparse(host_url)
+    parsed_test = urlparse(test_url)
+    return (parsed.scheme, parsed.netloc) == (parsed_test.scheme, parsed_test.netloc)
+
+
 def role_required(*roles):
+    """Decorator that restricts access based on user roles."""
     def wrapper(fn):
         @wraps(fn)
-        def decorated_view(*args, **kwargs):
+        def decorated(*args, **kwargs):
             if not current_user.is_authenticated:
-                return redirect(url_for("login"))
+                return redirect(url_for("login", next=request.path))
             if current_user.role not in roles:
                 flash("You don’t have permission to access this page.", "danger")
                 return redirect(url_for("home"))
             return fn(*args, **kwargs)
-        return decorated_view
+        return decorated
     return wrapper
 
 
-# ---------------------------------------------------------------------
-# ✅ GLOBAL CONTEXT
-# ---------------------------------------------------------------------
+# make datetime available to templates
 @app.context_processor
 def inject_globals():
-    return {'datetime': datetime, 'current_app': current_app}
+    return {"datetime": datetime, "current_app": current_app}
 
 
-# ---------------------------------------------------------------------
-# ✅ CORE ROUTES
-# ---------------------------------------------------------------------
+# ----------------------------
+# Routes - core
+# ----------------------------
 @app.route("/")
 @login_required
 def home():
@@ -170,8 +216,8 @@ def add():
             Section=request.form.get("Section"),
             Component=request.form.get("Component"),
             Supplier=request.form.get("Supplier"),
-            Quantity=request.form.get("Quantity"),
-            Lead_time=request.form.get("Lead_time"),
+            Quantity=request.form.get("Quantity") or None,
+            Lead_time=request.form.get("Lead_time") or None,
             CTED_order_date=request.form.get("CTED_order_date"),
             CTED_due_date=request.form.get("CTED_due_date"),
             HAESSA_order_date=request.form.get("HAESSA_order_date"),
@@ -184,7 +230,15 @@ def add():
         db.session.commit()
         flash("✅ Component added successfully!", "success")
         return redirect(url_for("home"))
-    return render_template("add.html")
+    # Provide dropdowns in the add template if needed
+    coaches = [c.Coach_no for c in Components.query.distinct(Components.Coach_no).all() if c.Coach_no]
+    sections = [c.Section for c in Components.query.distinct(Components.Section).all() if c.Section]
+    components = [c.Component for c in Components.query.distinct(Components.Component).all() if c.Component]
+    suppliers = [c.Supplier for c in Components.query.distinct(Components.Supplier).all() if c.Supplier]
+    return render_template("add.html", coaches=sorted(set(coaches)),
+                           sections=sorted(set(sections)),
+                           components=sorted(set(components)),
+                           suppliers=sorted(set(suppliers)))
 
 
 @app.route("/edit/<int:id>", methods=["GET", "POST"])
@@ -203,7 +257,7 @@ def edit(id):
     return render_template("edit.html", component=component)
 
 
-@app.route("/delete/<int:id>")
+@app.route("/delete/<int:id>", methods=["POST", "GET"])
 @role_required("editor", "admin")
 def delete(id):
     component = Components.query.get_or_404(id)
@@ -213,18 +267,52 @@ def delete(id):
     return redirect(url_for("home"))
 
 
-# ---------------------------------------------------------------------
-# ✅ AUTHENTICATION ROUTES
-# ---------------------------------------------------------------------
+# ----------------------------
+# Analytics / Pie / Calendar (simplified)
+# ----------------------------
+@app.route("/analytics")
+@login_required
+def analytics():
+    # simplified static data for now
+    chart_data = []
+    overall_chart = {"labels": [], "values": [], "total": 0}
+    trend_data = {}
+    return render_template("analytics.html", chart_data=chart_data, overall_chart=overall_chart, trend_data=trend_data,
+                           generated_by=current_user.username, generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"))
+
+
+
+@app.route("/calendar")
+@login_required
+def calendar():
+    components = Components.query.all()
+    today = date.today()
+    events = []
+    for c in components:
+        due = c.safe_date(c.CTED_due_date)
+        if not due:
+            continue
+        color = "#dc3545" if due < today else "#007bff"
+        events.append({"title": f"{c.Component} (Coach {c.Coach_no})", "start": due.strftime("%Y-%m-%d"), "color": color})
+    return render_template("calendar.html", events=events)
+
+
+# ----------------------------
+# Authentication
+# ----------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
             flash(f"Welcome, {user.username}!", "success")
+            # handle next safe redirect
+            next_url = request.args.get("next") or request.form.get("next")
+            if next_url and is_safe_redirect_url(next_url):
+                return redirect(next_url)
             return redirect(url_for("home"))
         flash("Invalid username or password.", "danger")
     return render_template("login.html")
@@ -246,8 +334,28 @@ def users():
     return render_template("users.html", users=all_users)
 
 
-# ---------------------------------------------------------------------
-# ✅ RUN APP
-# ---------------------------------------------------------------------
+@app.route("/create_users")
+def create_users():
+    # dev utility — create default users if missing
+    defaults = [
+        {"username": "viewer", "password": "viewer123_HAESSA", "role": "viewer"},
+        {"username": "editor", "password": "editor123_HAESSA", "role": "editor"},
+        {"username": "admin", "password": os.environ.get("DEFAULT_ADMIN_PASSWORD", "Admin@123"), "role": "admin"},
+    ]
+    created = []
+    for u in defaults:
+        if not User.query.filter_by(username=u["username"]).first():
+            user = User(username=u["username"], role=u["role"])
+            user.set_password(u["password"])
+            db.session.add(user)
+            created.append(u["username"])
+    db.session.commit()
+    return f"✅ Default users created (if missing): {', '.join(created)}"
+
+
+# ----------------------------
+# Run
+# ----------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Only used for local debugging. Render / prod uses gunicorn or Render's service.
+    app.run(debug=os.environ.get("FLASK_DEBUG", "0") == "1")

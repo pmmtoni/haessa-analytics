@@ -1,28 +1,17 @@
+# Flask Web Framework
 Flask==3.0.3
-gunicorn==23.0.0
-Flask-Login==0.6.3
+
+# Database ORM
 Flask-SQLAlchemy==3.1.1
-Flask-Migrate==4.0.7
-Flask-Mail==0.9.1
-pandas==2.2.3
-numpy==2.1.2
-openpyxl==3.1.5
-python-dateutil==2.9.0.post0
 SQLAlchemy==2.0.35
-Werkzeug==3.0.4
-Jinja2==3.1.4
-MarkupSafe==2.1.5
-itsdangerous==2.2.0
-click==8.1.7
-blinker==1.8.2
-flask
-flask_sqlalchemy
-flask_login
-gunicorn
-werkzeug
-flask
-flask_sqlalchemy
-flask_login
-gunicorn
-psycopg2-binary
-werkzeug
+
+# Authentication
+Flask-Login==0.6.3
+Werkzeug==3.0.3
+
+# Deployment (Gunicorn is used by Render)
+gunicorn==23.0.0
+
+# Optional utilities (safe to keep)
+psycopg2-binary==2.9.9      # PostgreSQL driver
+python-dotenv==1.0.1         # for local .env configs
