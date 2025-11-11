@@ -9,6 +9,16 @@ services:
   - type: web
     name: haessa-analytics
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app"
+    region: oregon
     plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
+      - key: RENDER
+        value: "true"
+databases:
+  - name: haessa_db
+    databaseName: haessa_db
+    user: haessa_admin

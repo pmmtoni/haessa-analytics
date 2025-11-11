@@ -8,7 +8,6 @@ Created on Oct 27, 2025
 import os
 from datetime import datetime, timedelta, date
 from functools import wraps
-
 from flask import (
     Flask, render_template, request, redirect,
     url_for, flash, current_app
@@ -27,33 +26,31 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
 
-# Detect Render environment
+# Detect if running on Render
 IS_RENDER = os.environ.get("RENDER") is not None
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # ✅ Database setup
-if IS_RENDER:
-    DB_PATH = "/tmp/components.db"
-else:
-    DB_PATH = os.path.join(BASE_DIR, "components.db")
-
-# Ensure writable directory
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-
-# If PostgreSQL is added later, use DATABASE_URL environment variable
 DATABASE_URL = os.environ.get("DATABASE_URL")
+
 if DATABASE_URL:
-    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL.replace("postgres://", "postgresql://")
+    # Render-provided PostgreSQL URL
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 else:
+    # Local SQLite fallback
+    DB_PATH = os.path.join(BASE_DIR, "components.db")
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
+
 print(f"✅ Using database: {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 
 # ---------------------------------------------------------------------
-# ✅ LOGIN MANAGER CONFIG
+# ✅ LOGIN MANAGER
 # ---------------------------------------------------------------------
 login_manager = LoginManager()
 login_manager.login_view = "login"
@@ -68,7 +65,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default="viewer")  # viewer / editor / admin
+    role = db.Column(db.String(20), default="viewer")
 
     def set_password(self, password):
         self.password = generate_password_hash(password)
@@ -118,17 +115,14 @@ class Components(db.Model):
 # ✅ INITIALIZE DATABASE
 # ---------------------------------------------------------------------
 with app.app_context():
-    try:
-        db.create_all()
-        if not User.query.filter_by(username="admin").first():
-            admin = User(username="admin", role="admin")
-            admin.set_password("Admin@123")
-            db.session.add(admin)
-            db.session.commit()
-            print("✅ Admin user created: admin / Admin@123")
-        print(f"✅ Database initialized at: {DB_PATH}")
-    except Exception as e:
-        print(f"⚠️ Database initialization failed: {e}")
+    db.create_all()
+    if not User.query.filter_by(username="admin").first():
+        admin = User(username="admin", role="admin")
+        admin.set_password("Admin@123")
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created: admin / Admin@123")
+    print("✅ Database initialized successfully.")
 
 
 # ---------------------------------------------------------------------
@@ -149,7 +143,7 @@ def role_required(*roles):
 
 
 # ---------------------------------------------------------------------
-# ✅ GLOBAL CONTEXT FOR ALL TEMPLATES
+# ✅ GLOBAL CONTEXT
 # ---------------------------------------------------------------------
 @app.context_processor
 def inject_globals():
@@ -157,97 +151,7 @@ def inject_globals():
 
 
 # ---------------------------------------------------------------------
-# ✅ ANALYTICS, PIE & CALENDAR ROUTES
-# ---------------------------------------------------------------------
-@app.route("/analytics")
-@login_required
-def analytics():
-    chart_data = [
-        {"coach": "10M50832T", "labels": ["Incomplete Order Details", "Not Ordered",
-         "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"],
-         "values": [168, 0, 0, 1, 1, 0, 0], "total": 170},
-        {"coach": "10M50835T", "labels": ["Incomplete Order Details", "Not Ordered",
-         "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"],
-         "values": [184, 0, 0, 0, 0, 0, 0], "total": 184},
-    ]
-
-    overall_chart = {
-        "labels": ["Incomplete Order Details", "Not Ordered",
-                   "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"],
-        "values": [721, 0, 0, 2, 1, 0, 0],
-        "total": 724
-    }
-
-    trend_data = {
-        "monthly": {"On Time": [80, 82, 85, 87, 90, 93],
-                    "Late": [10, 8, 7, 6, 5, 4]},
-        "weekly": {"On Time": [92, 88, 90, 91],
-                   "Late": [5, 7, 6, 5]}
-    }
-
-    return render_template(
-        "analytics.html",
-        chart_data=chart_data,
-        overall_chart=overall_chart,
-        trend_data=trend_data,
-        generated_by=current_user.username,
-        generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-    )
-
-
-@app.route("/chart")
-@login_required
-def chart():
-    return redirect(url_for("analytics"))
-
-
-@app.route("/pie")
-@login_required
-def pie():
-    components = Components.query.all()
-    overdue = sum(1 for c in components if c.safe_date(c.CTED_due_date)
-                  and c.safe_date(c.HAESSA_delivery_date)
-                  and c.safe_date(c.HAESSA_delivery_date) > c.safe_date(c.CTED_due_date))
-    late = sum(1 for c in components if c.safe_date(c.CTED_order_date)
-               and c.safe_date(c.HAESSA_delivery_date)
-               and c.safe_date(c.HAESSA_delivery_date) >
-               (c.safe_date(c.CTED_order_date) + timedelta(days=(c.Lead_time or 0))))
-    unpaid = sum(1 for c in components if c.safe_date(c.CTED_due_date)
-                 and c.safe_date(c.HEASSA_pay_date)
-                 and c.safe_date(c.HEASSA_pay_date) >
-                 (c.safe_date(c.CTED_due_date) - timedelta(days=(c.Lead_time or 0))))
-    total = len(components)
-    on_time = max(total - (overdue + late + unpaid), 0)
-
-    labels = ["Overdue", "Late", "Unpaid", "On Time"]
-    data = [overdue, late, unpaid, on_time]
-
-    return render_template("pie.html", labels=labels, data=data)
-
-
-@app.route("/calendar")
-@login_required
-def calendar():
-    components = Components.query.all()
-    today = date.today()
-    events = []
-
-    for c in components:
-        due = c.safe_date(c.CTED_due_date)
-        if not due:
-            continue
-        color = "#dc3545" if due < today else "#007bff"
-        events.append({
-            "title": f"{c.Component} (Coach {c.Coach_no})",
-            "start": due.strftime("%Y-%m-%d"),
-            "color": color
-        })
-
-    return render_template("calendar.html", events=events)
-
-
-# ---------------------------------------------------------------------
-# ✅ CORE ROUTES (Home, Add)
+# ✅ CORE ROUTES
 # ---------------------------------------------------------------------
 @app.route("/")
 @login_required
@@ -280,20 +184,33 @@ def add():
         db.session.commit()
         flash("✅ Component added successfully!", "success")
         return redirect(url_for("home"))
+    return render_template("add.html")
 
-    # Dropdown values
-    coaches = [c.Coach_no for c in Components.query.distinct(Components.Coach_no).all() if c.Coach_no]
-    sections = [c.Section for c in Components.query.distinct(Components.Section).all() if c.Section]
-    components = [c.Component for c in Components.query.distinct(Components.Component).all() if c.Component]
-    suppliers = [c.Supplier for c in Components.query.distinct(Components.Supplier).all() if c.Supplier]
 
-    return render_template(
-        "add.html",
-        coaches=sorted(set(coaches)),
-        sections=sorted(set(sections)),
-        components=sorted(set(components)),
-        suppliers=sorted(set(suppliers))
-    )
+@app.route("/edit/<int:id>", methods=["GET", "POST"])
+@role_required("editor", "admin")
+def edit(id):
+    component = Components.query.get_or_404(id)
+    if request.method == "POST":
+        for field in ["Item_no", "Coach_no", "Section", "Component", "Supplier",
+                      "Quantity", "Lead_time", "CTED_order_date", "CTED_due_date",
+                      "HAESSA_order_date", "HAESSA_delivery_date", "HEASSA_pay_date",
+                      "Component_status", "Notes"]:
+            setattr(component, field, request.form.get(field))
+        db.session.commit()
+        flash("✅ Component updated successfully!", "success")
+        return redirect(url_for("home"))
+    return render_template("edit.html", component=component)
+
+
+@app.route("/delete/<int:id>")
+@role_required("editor", "admin")
+def delete(id):
+    component = Components.query.get_or_404(id)
+    db.session.delete(component)
+    db.session.commit()
+    flash("🗑️ Component deleted successfully!", "info")
+    return redirect(url_for("home"))
 
 
 # ---------------------------------------------------------------------
@@ -304,15 +221,12 @@ def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
             flash(f"Welcome, {user.username}!", "success")
             return redirect(url_for("home"))
-
         flash("Invalid username or password.", "danger")
-
     return render_template("login.html")
 
 
@@ -329,4 +243,11 @@ def logout():
 @role_required("admin")
 def users():
     all_users = User.query.all()
-    return render_tem_
+    return render_template("users.html", users=all_users)
+
+
+# ---------------------------------------------------------------------
+# ✅ RUN APP
+# ---------------------------------------------------------------------
+if __name__ == "__main__":
+    app.run(debug=True)
