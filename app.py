@@ -27,6 +27,55 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
 
+import os
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash
+
+# Detect Render environment
+IS_RENDER = os.environ.get("RENDER") is not None
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# ✅ Always use /tmp for Render, base dir for local
+if IS_RENDER:
+    DB_DIR = "/tmp"
+else:
+    DB_DIR = BASE_DIR
+
+DB_PATH = os.path.join(DB_DIR, "components.db")
+
+# ✅ Make absolutely sure /tmp exists and is writable
+try:
+    os.makedirs(DB_DIR, exist_ok=True)
+    testfile = os.path.join(DB_DIR, "test_write.tmp")
+    with open(testfile, "w") as f:
+        f.write("ok")
+    os.remove(testfile)
+    print(f"✅ Database directory verified: {DB_DIR}")
+except Exception as e:
+    print(f"⚠️ Cannot write to {DB_DIR}: {e}")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+# ✅ Force DB creation (critical for Render)
+with app.app_context():
+    try:
+        db.create_all()
+        from app import User  # import after db defined
+
+        if not User.query.filter_by(username="admin").first():
+            admin = User(username="admin", role="admin")
+            admin.password = generate_password_hash("Admin@123")
+            db.session.add(admin)
+            db.session.commit()
+            print("✅ Admin user created: admin / Admin@123")
+        print(f"✅ Database initialized at {DB_PATH}")
+    except Exception as e:
+        print(f"⚠️ Database initialization failed: {e}")
+
+
 # Detect if running on Render (Render environment sets this variable)
 IS_RENDER = os.environ.get("RENDER") is not None
 
