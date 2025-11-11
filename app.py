@@ -5,199 +5,61 @@ Created on Oct 27, 2025
 @author: Paul
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import (
-    LoginManager, UserMixin, login_user, login_required,
-    logout_user, current_user
-)
-from werkzeug.security import generate_password_hash, check_password_hash
+import os
 from datetime import datetime, timedelta, date
 from functools import wraps
 
-# ---------------------------------------------------------------------
-# APP CONFIGURATION
-# ---------------------------------------------------------------------
-
-import os
-
-app = Flask(__name__)
-import os
-from flask import Flask
+from flask import (
+    Flask, render_template, request, redirect,
+    url_for, flash, current_app
+)
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash
+from flask_login import (
+    LoginManager, UserMixin, login_user,
+    login_required, logout_user, current_user
+)
+from werkzeug.security import generate_password_hash, check_password_hash
 
+
+# ---------------------------------------------------------------------
+# ✅ APP CONFIGURATION
+# ---------------------------------------------------------------------
 app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
 
-# -------------------------------------------------------------
-# ✅ DATABASE CONFIGURATION — Render safe
-# -------------------------------------------------------------
+# Detect Render environment (Render uses /tmp as writable directory)
+# Detect if running on Render (environment variable automatically set)
+IS_RENDER = os.environ.get("RENDER") is not None
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-IS_RENDER = os.environ.get("RENDER", False)
 
+# Render only allows writes in /tmp, so use that directory
 if IS_RENDER:
-    DB_DIR = "/tmp"
+    DB_PATH = "/tmp/components.db"
 else:
-    DB_DIR = BASE_DIR
+    DB_PATH = os.path.join(BASE_DIR, "components.db")
 
-DB_FILE = os.path.join(DB_DIR, "components.db")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_FILE}"
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy(app)
+# Ensure database exists
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-# -------------------------------------------------------------
-# ✅ Ensure DB file + Admin user exist
-# -------------------------------------------------------------
-def init_db():
-    from app import User  # import here to avoid circular import issues
 
-    os.makedirs(DB_DIR, exist_ok=True)
-    db.create_all()
-
-    # Create default admin if missing
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", role="admin",
-                     password=generate_password_hash("Admin@123"))
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Admin user created: admin / Admin@123")
-
-    print(f"✅ Database initialized at {DB_FILE}")
-
-with app.app_context():
-    init_db()
 
 # ---------------------------------------------------------------------
-# DATABASE PATH CONFIGURATION (Render-compatible)
-# ---------------------------------------------------------------------
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-# Use /tmp on Render (only writable directory)
-if os.environ.get("RENDER"):
-    db_dir = "/tmp"
-else:
-    db_dir = BASE_DIR
-
-db_path = os.path.join(db_dir, "components.db")
-
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-db = SQLAlchemy(app)
-
-# ---------------------------------------------------------------------
-# AUTO-CREATE DATABASE AND ADMIN USER (safe for Render)
-# ---------------------------------------------------------------------
-with app.app_context():
-    os.makedirs(db_dir, exist_ok=True)
-    db.create_all()
-
-    from werkzeug.security import generate_password_hash
-
-    if not db.session.query(User).filter_by(username="admin").first():
-        admin = User(username="admin", role="admin", password=generate_password_hash("Admin@123"))
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Admin user created: admin / Admin@123")
-
-    print(f"✅ Database path in use: {db_path}")
-
-# --- Dynamic DB path ---
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-if os.environ.get("RENDER"):  # Detect if running on Render
-    db_path = os.path.join("/tmp", "components.db")
-else:
-    db_path = os.path.join(BASE_DIR, "components.db")
-
-
-import os
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash
-
-app = Flask(__name__)
-app.secret_key = "haessa_secret_key"
-
-# -------------------------------------------------------------
-# ✅ DATABASE CONFIGURATION — Render safe
-# -------------------------------------------------------------
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-RENDER_ENV = os.environ.get("RENDER", False)
-
-# Render can only write to /tmp
-if RENDER_ENV:
-    DB_DIR = "/tmp"
-else:
-    DB_DIR = BASE_DIR
-
-DB_FILE = os.path.join(DB_DIR, "components.db")
-DB_URI = f"sqlite:///{DB_FILE}"
-
-app.config["SQLALCHEMY_DATABASE_URI"] = DB_URI
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
-
-# -------------------------------------------------------------
-# ✅ Ensure database file and admin user exist
-# -------------------------------------------------------------
-with app.app_context():
-    os.makedirs(DB_DIR, exist_ok=True)  # Make sure directory exists
-    db.create_all()
-
-    # Auto-create admin user if missing
-    from app import User  # ensure model is imported after db is defined
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", role="admin",
-                     password=generate_password_hash("Admin@123"))
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Admin user created: admin / Admin@123")
-
-    print(f"✅ Database initialized at {DB_FILE}")
-
-
-
-# Dynamic database path (local vs Render)
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-if os.environ.get("RENDER"):  # Detect Render environment
-    db_path = os.path.join("/tmp", "components.db")  # Render writable dir
-else:
-    db_path = os.path.join(BASE_DIR, "components.db")
-
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-db = SQLAlchemy(app)
-
-# --- Ensure database and admin user exist ---
-with app.app_context():
-    # Make sure directory exists
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-
-    # Create database tables
-    db.create_all()
-
-    # Auto-create admin user if missing
-    from werkzeug.security import generate_password_hash
-    if not db.session.query(User).filter_by(username="admin").first():
-        admin = User(username="admin", role="admin", password=generate_password_hash("Admin@123"))
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Admin user created: admin / Admin@123")
-
-# ---------------------------------------------------------------------
-# FLASK-LOGIN CONFIG
+# ✅ LOGIN MANAGER CONFIG
 # ---------------------------------------------------------------------
 login_manager = LoginManager()
 login_manager.login_view = "login"
 login_manager.init_app(app)
 
+
 # ---------------------------------------------------------------------
-# DATABASE MODELS
+# ✅ DATABASE MODELS
 # ---------------------------------------------------------------------
 class User(UserMixin, db.Model):
     __tablename__ = "users"
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
@@ -209,9 +71,11 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password, password)
 
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
 
 class Components(db.Model):
     __tablename__ = "components"
@@ -233,30 +97,39 @@ class Components(db.Model):
     Notes = db.Column(db.String(200))
 
     def safe_date(self, value):
+        """Safely parse a date string into a date object."""
         if not value:
             return None
         if isinstance(value, datetime):
             return value.date()
         if isinstance(value, str):
-            value = value.strip()
-            if not value:
-                return None
-            fmts = ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d / %m / %Y", "%m/%d/%Y"]
-            for fmt in fmts:
+            for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y"]:
                 try:
-                    return datetime.strptime(value, fmt).date()
+                    return datetime.strptime(value.strip(), fmt).date()
                 except ValueError:
                     continue
-            try:
-                return datetime.fromisoformat(value).date()
-            except Exception:
-                return None
         return None
 
+
 # ---------------------------------------------------------------------
-# ROLE DECORATOR
+# ✅ INITIALIZE DATABASE AND DEFAULT ADMIN
+# ---------------------------------------------------------------------
+with app.app_context():
+    db.create_all()
+    if not User.query.filter_by(username="admin").first():
+        admin = User(username="admin", role="admin")
+        admin.set_password("Admin@123")
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created: admin / Admin@123")
+    print(f"✅ Database ready at: {DB_PATH}")
+
+
+# ---------------------------------------------------------------------
+# ✅ ROLE DECORATOR
 # ---------------------------------------------------------------------
 def role_required(*roles):
+    """Decorator that restricts access based on user roles."""
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
@@ -269,21 +142,116 @@ def role_required(*roles):
         return decorated_view
     return wrapper
 
-# ---------------------------------------------------------------------
-# CORE ROUTES
-# ---------------------------------------------------------------------
 
+# ---------------------------------------------------------------------
+# ✅ GLOBAL CONTEXT FOR TEMPLATES
+# ---------------------------------------------------------------------
 @app.context_processor
-def inject_datetime():
-    return {'datetime': datetime}
+def inject_globals():
+    """Make datetime and current_app available to all templates."""
+    return {'datetime': datetime, 'current_app': current_app}
 
 
+# ---------------------------------------------------------------------
+# ✅ ANALYTICS, PIE & CALENDAR ROUTES
+# ---------------------------------------------------------------------
+@app.route("/analytics")
+@login_required
+def analytics():
+    chart_data = [
+        {"coach": "10M50832T", "labels": ["Incomplete Order Details", "Not Ordered",
+         "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"],
+         "values": [168, 0, 0, 1, 1, 0, 0], "total": 170},
+        {"coach": "10M50835T", "labels": ["Incomplete Order Details", "Not Ordered",
+         "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"],
+         "values": [184, 0, 0, 0, 0, 0, 0], "total": 184},
+    ]
 
+    overall_chart = {
+        "labels": ["Incomplete Order Details", "Not Ordered",
+                   "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"],
+        "values": [721, 0, 0, 2, 1, 0, 0],
+        "total": 724
+    }
+
+    trend_data = {
+        "monthly": {"On Time": [80, 82, 85, 87, 90, 93],
+                    "Late": [10, 8, 7, 6, 5, 4]},
+        "weekly": {"On Time": [92, 88, 90, 91],
+                   "Late": [5, 7, 6, 5]}
+    }
+
+    return render_template(
+        "analytics.html",
+        chart_data=chart_data,
+        overall_chart=overall_chart,
+        trend_data=trend_data,
+        generated_by=current_user.username,
+        generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    )
+
+
+@app.route("/chart")
+@login_required
+def chart():
+    """Redirect to analytics (alias route)."""
+    return redirect(url_for("analytics"))
+
+
+@app.route("/pie")
+@login_required
+def pie():
+    components = Components.query.all()
+    overdue = sum(1 for c in components if c.safe_date(c.CTED_due_date)
+                  and c.safe_date(c.HAESSA_delivery_date)
+                  and c.safe_date(c.HAESSA_delivery_date) > c.safe_date(c.CTED_due_date))
+    late = sum(1 for c in components if c.safe_date(c.CTED_order_date)
+               and c.safe_date(c.HAESSA_delivery_date)
+               and c.safe_date(c.HAESSA_delivery_date) >
+               (c.safe_date(c.CTED_order_date) + timedelta(days=(c.Lead_time or 0))))
+    unpaid = sum(1 for c in components if c.safe_date(c.CTED_due_date)
+                 and c.safe_date(c.HEASSA_pay_date)
+                 and c.safe_date(c.HEASSA_pay_date) >
+                 (c.safe_date(c.CTED_due_date) - timedelta(days=(c.Lead_time or 0))))
+    total = len(components)
+    on_time = max(total - (overdue + late + unpaid), 0)
+
+    labels = ["Overdue", "Late", "Unpaid", "On Time"]
+    data = [overdue, late, unpaid, on_time]
+
+    return render_template("pie.html", labels=labels, data=data)
+
+
+@app.route("/calendar")
+@login_required
+def calendar():
+    components = Components.query.all()
+    today = date.today()
+    events = []
+
+    for c in components:
+        due = c.safe_date(c.CTED_due_date)
+        if not due:
+            continue
+        color = "#dc3545" if due < today else "#007bff"
+        events.append({
+            "title": f"{c.Component} (Coach {c.Coach_no})",
+            "start": due.strftime("%Y-%m-%d"),
+            "color": color
+        })
+
+    return render_template("calendar.html", events=events)
+
+
+# ---------------------------------------------------------------------
+# ✅ CORE ROUTES (Home, Add)
+# ---------------------------------------------------------------------
 @app.route("/")
 @login_required
 def home():
     components = Components.query.all()
     return render_template("home.html", components=components)
+
 
 @app.route("/add", methods=["GET", "POST"])
 @role_required("editor", "admin")
@@ -307,27 +275,10 @@ def add():
         )
         db.session.add(new_component)
         db.session.commit()
-
-        # AJAX request?
-        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return {
-                "success": True,
-                "message": "✅ Component added successfully!",
-                "data": {
-                "id": new_component.id,
-                "Coach_no": new_component.Coach_no,
-                "Component": new_component.Component,
-                "Section": new_component.Section,
-                "Supplier": new_component.Supplier,
-                "Component_status": new_component.Component_status,
-                "CTED_due_date": new_component.CTED_due_date
-        }
-    }, 200
-
         flash("✅ Component added successfully!", "success")
         return redirect(url_for("home"))
 
-    # Dropdowns
+    # Dropdown values
     coaches = [c.Coach_no for c in Components.query.distinct(Components.Coach_no).all() if c.Coach_no]
     sections = [c.Section for c in Components.query.distinct(Components.Section).all() if c.Section]
     components = [c.Component for c in Components.query.distinct(Components.Component).all() if c.Component]
@@ -341,279 +292,26 @@ def add():
         suppliers=sorted(set(suppliers))
     )
 
-@app.route("/edit/<int:id>", methods=["GET", "POST"])
-@login_required
-def edit(id):
-    component = Components.query.get_or_404(id)
-
-    if request.method == "POST":
-        for field in [
-            "Item_no", "Coach_no", "Section", "Component", "Supplier",
-            "Quantity", "Lead_time", "CTED_order_date", "CTED_due_date",
-            "HAESSA_order_date", "HAESSA_delivery_date", "HEASSA_pay_date",
-            "Component_status", "Notes"
-        ]:
-            setattr(component, field, request.form.get(field))
-        db.session.commit()
-
-        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return {
-                "success": True,
-                "message": "✅ Component added successfully!",
-                "data": {
-                "id": component.id,
-                "Coach_no": component.Coach_no,
-                "Component": component.Component,
-                "Section": component.Section,
-                "Supplier": component.Supplier,
-                "Component_status": component.Component_status,
-                "CTED_due_date": component.CTED_due_date
-        }
-    }, 200
-
-        flash("✅ Component updated successfully!", "success")
-        return redirect(url_for("home"))
-
-    return render_template("edit.html", component=component)
-
-@app.route("/get_component/<int:id>", methods=["GET"])
-@login_required
-def get_component(id):
-    c = Components.query.get_or_404(id)
-    return {
-        "id": c.id,
-        "Item_no": c.Item_no or "",
-        "Coach_no": c.Coach_no or "",
-        "Section": c.Section or "",
-        "Component": c.Component or "",
-        "Supplier": c.Supplier or "",
-        "Quantity": c.Quantity or "",
-        "Lead_time": c.Lead_time or "",
-        "CTED_order_date": c.CTED_order_date or "",
-        "CTED_due_date": c.CTED_due_date or "",
-        "HAESSA_order_date": c.HAESSA_order_date or "",
-        "HEASSA_pay_date": c.HEASSA_pay_date or "",
-        "HAESSA_delivery_date": c.HAESSA_delivery_date or "",
-        "Component_status": c.Component_status or "",
-        "Notes": c.Notes or ""
-    }
-
-@app.route("/delete/<int:component_id>", methods=["POST"])
-@role_required("admin")
-def delete(component_id):
-    component = Components.query.get_or_404(component_id)
-    db.session.delete(component)
-    db.session.commit()
-    flash("Component deleted successfully!", "success")
-    return redirect(url_for("home"))
 
 # ---------------------------------------------------------------------
-# DROPDOWN ROUTES
-# ---------------------------------------------------------------------
-@app.route("/get_coach_list")
-@login_required
-def get_coach_list():
-    data = [c.Coach_no for c in Components.query.distinct(Components.Coach_no).all() if c.Coach_no]
-    return {"coaches": sorted(set(data))}
-
-@app.route("/get_component_list")
-@login_required
-def get_component_list():
-    data = [c.Component for c in Components.query.distinct(Components.Component).all() if c.Component]
-    return {"components": sorted(set(data))}
-
-@app.route("/get_supplier_list_data")
-@login_required
-def get_supplier_list_data():
-    data = [c.Supplier for c in Components.query.distinct(Components.Supplier).all() if c.Supplier]
-    return {"suppliers": sorted(set(data))}
-
-@app.route("/get_section_list")
-@login_required
-def get_section_list():
-    data = [c.Section for c in Components.query.distinct(Components.Section).all() if c.Section]
-    return {"sections": sorted(set(data))}
-
-@app.route("/refresh_dropdowns")
-@login_required
-def refresh_dropdowns():
-    data = {
-        "coaches": [c.Coach_no for c in Components.query.distinct(Components.Coach_no).all() if c.Coach_no],
-        "components": [c.Component for c in Components.query.distinct(Components.Component).all() if c.Component],
-        "suppliers": [c.Supplier for c in Components.query.distinct(Components.Supplier).all() if c.Supplier],
-        "sections": [c.Section for c in Components.query.distinct(Components.Section).all() if c.Section],
-    }
-    return {k: sorted(set(v)) for k, v in data.items()}
-
-# ---------------------------------------------------------------------
-# ANALYTICS / CHART / PIE / CALENDAR
-# ---------------------------------------------------------------------
-from datetime import datetime as dt
-
-@app.route("/analytics")
-@login_required
-def analytics():
-    # -----------------------------------------------------------
-    # ✅ STEP 1: Define static chart data (from your logs)
-    # -----------------------------------------------------------
-    chart_data = [
-        {
-            "coach": "10M50832T",
-            "labels": [
-                "Incomplete Order Details", "Not Ordered",
-                "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"
-            ],
-            "values": [168, 0, 0, 1, 1, 0, 0],
-            "total": 170
-        },
-        {
-            "coach": "10M50835T",
-            "labels": [
-                "Incomplete Order Details", "Not Ordered",
-                "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"
-            ],
-            "values": [184, 0, 0, 0, 0, 0, 0],
-            "total": 184
-        },
-        {
-            "coach": "10M50844T",
-            "labels": [
-                "Incomplete Order Details", "Not Ordered",
-                "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"
-            ],
-            "values": [184, 0, 0, 1, 0, 0, 0],
-            "total": 185
-        },
-        {
-            "coach": "10M50982T",
-            "labels": [
-                "Incomplete Order Details", "Not Ordered",
-                "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"
-            ],
-            "values": [185, 0, 0, 0, 0, 0, 0],
-            "total": 185
-        }
-    ]
-
-    # -----------------------------------------------------------
-    # ✅ STEP 2: Overall summary
-    # -----------------------------------------------------------
-    overall_chart = {
-        "labels": [
-            "Incomplete Order Details", "Not Ordered",
-            "Being Processed", "Paid", "Overdue", "On Time", "Unpaid"
-        ],
-        "values": [721, 0, 0, 2, 1, 0, 0],
-        "total": 724
-    }
-
-    # -----------------------------------------------------------
-    # ✅ STEP 3: Trend data (plain lists)
-    # -----------------------------------------------------------
-    trend_data = {
-        "monthly": {
-            "On Time": [80, 82, 85, 87, 90, 93],
-            "Late": [10, 8, 7, 6, 5, 4],
-            "Overdue": [5, 4, 3, 3, 2, 2],
-            "Unpaid": [12, 10, 8, 7, 6, 5],
-            "Paid": [88, 89, 90, 91, 92, 94],
-            "Being Processed": [20, 18, 15, 12, 10, 9]
-        },
-        "weekly": {
-            "On Time": [92, 88, 90, 91],
-            "Late": [5, 7, 6, 5],
-            "Overdue": [3, 2, 3, 2],
-            "Unpaid": [10, 8, 6, 5],
-            "Paid": [90, 91, 92, 93],
-            "Being Processed": [15, 12, 10, 8]
-        },
-        "quarterly": {
-            "On Time": [85, 90, 93, 95],
-            "Late": [8, 6, 5, 4],
-            "Overdue": [4, 3, 2, 2],
-            "Unpaid": [9, 7, 6, 5],
-            "Paid": [88, 91, 93, 96],
-            "Being Processed": [18, 14, 10, 7]
-        },
-        "yearly": {
-            "On Time": [75, 80, 82, 85, 88],
-            "Late": [12, 10, 8, 6, 5],
-            "Overdue": [6, 5, 4, 3, 2],
-            "Unpaid": [11, 9, 7, 6, 5],
-            "Paid": [85, 88, 90, 92, 94],
-            "Being Processed": [22, 18, 15, 12, 9]
-        }
-    }
-
-    trend_metrics = list(trend_data["monthly"].keys())
-
-    # -----------------------------------------------------------
-    # ✅ STEP 4: Render the template
-    # -----------------------------------------------------------
-    return render_template(
-        "analytics.html",
-        generated_by=current_user.username,
-        generated_at=dt.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
-        total_coaches=len(chart_data),
-        chart_data=chart_data,
-        overall_chart=overall_chart,
-        trend_data=trend_data,
-        trend_metrics=trend_metrics
-    )
-
-
-@app.route("/chart")
-@login_required
-def chart():
-    # Reuse analytics logic but return JSON-safe chart data for reuse
-    return redirect(url_for("analytics"))
-
-@app.route("/pie")
-@login_required
-def pie():
-    components = Components.query.all()
-    overdue = sum(1 for c in components if c.safe_date(c.CTED_due_date) and c.safe_date(c.HAESSA_delivery_date) and c.safe_date(c.HAESSA_delivery_date) > c.safe_date(c.CTED_due_date))
-    late = sum(1 for c in components if c.safe_date(c.CTED_order_date) and c.safe_date(c.HAESSA_delivery_date) and c.safe_date(c.HAESSA_delivery_date) > (c.safe_date(c.CTED_order_date) + timedelta(days=(c.Lead_time or 0))))
-    unpaid = sum(1 for c in components if c.safe_date(c.CTED_due_date) and c.safe_date(c.HEASSA_pay_date) and c.safe_date(c.HEASSA_pay_date) > (c.safe_date(c.CTED_due_date) - timedelta(days=(c.Lead_time or 0))))
-    total = len(components)
-    on_time = max(total - (overdue + late + unpaid), 0)
-    labels = ["Overdue", "Late", "Unpaid", "On Time"]
-    data = [overdue, late, unpaid, on_time]
-    return render_template("pie.html", labels=labels, data=data)
-
-@app.route("/calendar")
-@login_required
-def calendar():
-    components = Components.query.all()
-    today = date.today()
-    events = []
-    for c in components:
-        due = c.safe_date(c.CTED_due_date)
-        if not due:
-            continue
-        color = "#dc3545" if due < today else "#007bff"
-        events.append({
-            "title": f"{c.Component} (Coach {c.Coach_no})",
-            "start": due.strftime("%Y-%m-%d"),
-            "color": color
-        })
-    return render_template("calendar.html", events=events)
-
-# ---------------------------------------------------------------------
-# LOGIN / LOGOUT / USERS
+# ✅ AUTHENTICATION ROUTES
 # ---------------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
+
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
             flash(f"Welcome, {user.username}!", "success")
             return redirect(url_for("home"))
+
         flash("Invalid username or password.", "danger")
+
     return render_template("login.html")
+
 
 @app.route("/logout")
 @login_required
@@ -622,47 +320,39 @@ def logout():
     flash("Logged out successfully.", "info")
     return redirect(url_for("login"))
 
-# --------------------------- USER MANAGEMENT PAGE ---------------------------
+
 @app.route("/users")
 @login_required
 @role_required("admin")
 def users():
-    """Display user management page for admins"""
     all_users = User.query.all()
     return render_template("users.html", users=all_users)
 
+
 @app.route("/create_users")
 def create_users():
-    users = [
+    """Utility route to create default users."""
+    default_users = [
         {"username": "viewer", "password": "viewer123_HAESSA", "role": "viewer"},
         {"username": "editor", "password": "editor123_HAESSA", "role": "editor"},
-        {"username": "admin", "password": "admin123_HAESSA", "role": "admin"},
+        {"username": "admin", "password": "Admin@123", "role": "admin"},
     ]
-    for u in users:
+
+    for u in default_users:
         if not User.query.filter_by(username=u["username"]).first():
-            db.session.add(
-                User(username=u["username"],
-                     password=generate_password_hash(u["password"]),
-                     role=u["role"])
+            user = User(
+                username=u["username"],
+                password=generate_password_hash(u["password"]),
+                role=u["role"]
             )
+            db.session.add(user)
+
     db.session.commit()
     return "✅ Default users created successfully!"
 
-with app.app_context():
-    db.create_all()
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", role="admin")
-        admin.set_password("Admin@123")
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Admin user created: admin / Admin@123")
-
-
 
 # ---------------------------------------------------------------------
-# RUN APP
+# ✅ RUN APP
 # ---------------------------------------------------------------------
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
