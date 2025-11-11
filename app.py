@@ -33,13 +33,37 @@ if os.environ.get("RENDER"):  # Detect if running on Render
 else:
     db_path = os.path.join(BASE_DIR, "components.db")
 
+import os
+
+app = Flask(__name__)
+app.secret_key = "haessa_secret_key"
+
+# Dynamic database path (local vs Render)
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+if os.environ.get("RENDER"):  # Detect Render environment
+    db_path = os.path.join("/tmp", "components.db")  # Render writable dir
+else:
+    db_path = os.path.join(BASE_DIR, "components.db")
+
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
+# --- Ensure database and admin user exist ---
+with app.app_context():
+    # Make sure directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-db = SQLAlchemy(app)
+    # Create database tables
+    db.create_all()
+
+    # Auto-create admin user if missing
+    from werkzeug.security import generate_password_hash
+    if not db.session.query(User).filter_by(username="admin").first():
+        admin = User(username="admin", role="admin", password=generate_password_hash("haessa123"))
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created: admin / haessa123")
 
 # ---------------------------------------------------------------------
 # FLASK-LOGIN CONFIG
