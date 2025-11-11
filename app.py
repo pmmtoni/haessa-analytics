@@ -232,6 +232,8 @@ def inject_globals():
 @login_required
 def home():
     components = Components.query.all()
+    print(f"✅ Render DB path: {app.config['SQLALCHEMY_DATABASE_URI']}")
+    print(f"✅ Components found: {Components.query.count()}")
     return render_template("home.html", components=components)
 
 
