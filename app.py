@@ -157,7 +157,55 @@ def ensure_admin_exists():
 
 
 with app.app_context():
-    ensure_admin_exists()
+    db.create_all()
+
+    # Create admin if missing
+    if not User.query.filter_by(username="admin").first():
+        admin = User(username="admin", role="admin")
+        admin.set_password("Admin@123")
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created: admin / Admin@123")
+
+    # Seed sample component data if empty
+    if Components.query.count() == 0:
+        sample_components = [
+            Components(
+                Item_no="C001",
+                Coach_no="10M50832T",
+                Section="Electrical",
+                Component="Power Supply Unit",
+                Supplier="TransTech Ltd",
+                Quantity=4,
+                Lead_time=30,
+                CTED_order_date="2025-10-15",
+                CTED_due_date="2025-11-15",
+                HAESSA_order_date="2025-10-20",
+                HAESSA_delivery_date="2025-11-10",
+                HEASSA_pay_date="2025-11-05",
+                Component_status="Delivered",
+                Notes="Delivered ahead of schedule"
+            ),
+            Components(
+                Item_no="C002",
+                Coach_no="10M50835T",
+                Section="Mechanical",
+                Component="Axle Bearing",
+                Supplier="Mekano Engineering",
+                Quantity=8,
+                Lead_time=45,
+                CTED_order_date="2025-09-25",
+                CTED_due_date="2025-11-09",
+                HAESSA_order_date="2025-09-30",
+                HAESSA_delivery_date="2025-11-11",
+                HEASSA_pay_date="2025-11-10",
+                Component_status="Overdue",
+                Notes="Delayed due to supplier backlog"
+            ),
+        ]
+        db.session.bulk_save_objects(sample_components)
+        db.session.commit()
+        print("✅ Sample components added for demo.")
     print("✅ Database initialization step completed.")
 
 
