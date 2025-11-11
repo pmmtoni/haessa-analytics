@@ -18,13 +18,45 @@ from functools import wraps
 # ---------------------------------------------------------------------
 # APP CONFIGURATION
 # ---------------------------------------------------------------------
-app = Flask(__name__)
-app.secret_key = "haessa_secret_key"
 
 import os
 
 app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
+
+# ---------------------------------------------------------------------
+# DATABASE PATH CONFIGURATION (Render-compatible)
+# ---------------------------------------------------------------------
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# Use /tmp on Render (only writable directory)
+if os.environ.get("RENDER"):
+    db_dir = "/tmp"
+else:
+    db_dir = BASE_DIR
+
+db_path = os.path.join(db_dir, "components.db")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
+
+# ---------------------------------------------------------------------
+# AUTO-CREATE DATABASE AND ADMIN USER (safe for Render)
+# ---------------------------------------------------------------------
+with app.app_context():
+    os.makedirs(db_dir, exist_ok=True)
+    db.create_all()
+
+    from werkzeug.security import generate_password_hash
+
+    if not db.session.query(User).filter_by(username="admin").first():
+        admin = User(username="admin", role="admin", password=generate_password_hash("haessa123"))
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created: admin / haessa123")
+
+    print(f"✅ Database path in use: {db_path}")
 
 # --- Dynamic DB path ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
