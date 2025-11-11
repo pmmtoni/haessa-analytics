@@ -22,7 +22,52 @@ from functools import wraps
 import os
 
 app = Flask(__name__)
+import os
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash
+
+app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
+
+# -------------------------------------------------------------
+# ✅ DATABASE CONFIGURATION — Render safe
+# -------------------------------------------------------------
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+IS_RENDER = os.environ.get("RENDER", False)
+
+if IS_RENDER:
+    DB_DIR = "/tmp"
+else:
+    DB_DIR = BASE_DIR
+
+DB_FILE = os.path.join(DB_DIR, "components.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_FILE}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+# -------------------------------------------------------------
+# ✅ Ensure DB file + Admin user exist
+# -------------------------------------------------------------
+def init_db():
+    from app import User  # import here to avoid circular import issues
+
+    os.makedirs(DB_DIR, exist_ok=True)
+    db.create_all()
+
+    # Create default admin if missing
+    if not User.query.filter_by(username="admin").first():
+        admin = User(username="admin", role="admin",
+                     password=generate_password_hash("Admin@123"))
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created: admin / Admin@123")
+
+    print(f"✅ Database initialized at {DB_FILE}")
+
+with app.app_context():
+    init_db()
 
 # ---------------------------------------------------------------------
 # DATABASE PATH CONFIGURATION (Render-compatible)
