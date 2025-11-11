@@ -51,10 +51,10 @@ with app.app_context():
     from werkzeug.security import generate_password_hash
 
     if not db.session.query(User).filter_by(username="admin").first():
-        admin = User(username="admin", role="admin", password=generate_password_hash("haessa123"))
+        admin = User(username="admin", role="admin", password=generate_password_hash("Admin@123"))
         db.session.add(admin)
         db.session.commit()
-        print("✅ Admin user created: admin / haessa123")
+        print("✅ Admin user created: admin / Admin@123")
 
     print(f"✅ Database path in use: {db_path}")
 
@@ -65,10 +65,54 @@ if os.environ.get("RENDER"):  # Detect if running on Render
 else:
     db_path = os.path.join(BASE_DIR, "components.db")
 
+
 import os
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash
 
 app = Flask(__name__)
 app.secret_key = "haessa_secret_key"
+
+# -------------------------------------------------------------
+# ✅ DATABASE CONFIGURATION — Render safe
+# -------------------------------------------------------------
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+RENDER_ENV = os.environ.get("RENDER", False)
+
+# Render can only write to /tmp
+if RENDER_ENV:
+    DB_DIR = "/tmp"
+else:
+    DB_DIR = BASE_DIR
+
+DB_FILE = os.path.join(DB_DIR, "components.db")
+DB_URI = f"sqlite:///{DB_FILE}"
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DB_URI
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+# -------------------------------------------------------------
+# ✅ Ensure database file and admin user exist
+# -------------------------------------------------------------
+with app.app_context():
+    os.makedirs(DB_DIR, exist_ok=True)  # Make sure directory exists
+    db.create_all()
+
+    # Auto-create admin user if missing
+    from app import User  # ensure model is imported after db is defined
+    if not User.query.filter_by(username="admin").first():
+        admin = User(username="admin", role="admin",
+                     password=generate_password_hash("Admin@123"))
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created: admin / Admin@123")
+
+    print(f"✅ Database initialized at {DB_FILE}")
+
+
 
 # Dynamic database path (local vs Render)
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -92,10 +136,10 @@ with app.app_context():
     # Auto-create admin user if missing
     from werkzeug.security import generate_password_hash
     if not db.session.query(User).filter_by(username="admin").first():
-        admin = User(username="admin", role="admin", password=generate_password_hash("haessa123"))
+        admin = User(username="admin", role="admin", password=generate_password_hash("Admin@123"))
         db.session.add(admin)
         db.session.commit()
-        print("✅ Admin user created: admin / haessa123")
+        print("✅ Admin user created: admin / Admin@123")
 
 # ---------------------------------------------------------------------
 # FLASK-LOGIN CONFIG
