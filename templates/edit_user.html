@@ -1,36 +1,19 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Nov  5 02:33:17 2025
-
-@author: Paul
-"""
-
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-4 col-md-6">
-    <h3>✏️ Edit User</h3>
-    <form method="POST">
-        <div class="mb-3">
-            <label class="form-label">Username</label>
-            <input type="text" name="username" class="form-control" value="{{ user.username }}" required>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Change Password (optional)</label>
-            <input type="password" name="password" class="form-control" placeholder="Leave blank to keep current">
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Role</label>
-            <select name="role" class="form-select">
-                <option value="viewer" {% if user.role == 'viewer' %}selected{% endif %}>Viewer</option>
-                <option value="editor" {% if user.role == 'editor' %}selected{% endif %}>Editor</option>
-                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
-            </select>
-        </div>
-
-        <button type="submit" class="btn btn-primary">Update</button>
-        <a href="{{ url_for('users') }}" class="btn btn-secondary">Cancel</a>
-    </form>
-</div>
+<h3>Edit User</h3>
+<form method="post" class="row g-2">
+  <div class="col-md-4"><input name="username" class="form-control" value="{{ user.username }}" required></div>
+  <div class="col-md-3">
+    <select name="role" class="form-select">
+      <option value="viewer" {% if user.role=='viewer' %}selected{% endif %}>Viewer</option>
+      <option value="editor" {% if user.role=='editor' %}selected{% endif %}>Editor</option>
+      <option value="admin" {% if user.role=='admin' %}selected{% endif %}>Admin</option>
+    </select>
+  </div>
+  <div class="col-md-3"><input name="password" class="form-control" placeholder="(leave blank to keep)"></div>
+  <div class="col-md-2">
+    <button class="btn btn-primary">Save</button>
+  </div>
+</form>
 {% endblock %}
+<!-- placeholder edit_user.html -->

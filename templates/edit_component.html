@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3 class="fw-bold mb-3">Edit Component</h3>
+
+<style>
+.changed-old { background-color: #ffcccc !important; }
+.changed-new { background-color: #ccffcc !important; }
+</style>
+
+<form method="POST">
+
+    <div class="row">
+
+ <!-- ITEM NUMBER -->
+       <div class="mb-3">
+            <label class="form-label">Item Number</label>
+            <input type="text" name="Item_no" class="form-control" value="{{ component.Item_no }}" required>
+       </div>
+
+       
+       
+        <!-- COACH NUMBER -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Coach Number</label>
+            <input type="text" class="form-control"
+                   name="Coach_no"
+                   value="{{ component.Coach_no }}"
+                   data-old="{{ component.Coach_no }}">
+        </div>
+
+        <!-- SECTION -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Section</label>
+            <input type="text" class="form-control"
+                   name="Section"
+                   value="{{ component.Section }}"
+                   data-old="{{ component.Section }}">
+        </div>
+
+        <!-- COMPONENT -->
+        <div class="col-md-12 mb-3">
+            <label class="form-label fw-bold">Component</label>
+            <input type="text" class="form-control"
+                   name="Component"
+                   value="{{ component.Component }}"
+                   data-old="{{ component.Component }}">
+        </div>
+
+        <!-- SUPPLIER -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Supplier</label>
+            <input type="text" class="form-control"
+                   name="Supplier"
+                   value="{{ component.Supplier }}"
+                   data-old="{{ component.Supplier }}">
+        </div>
+
+        <!-- QUANTITY -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Quantity</label>
+            <input type="number" class="form-control"
+                   name="Quantity"
+                   value="{{ component.Quantity }}"
+                   data-old="{{ component.Quantity }}">
+        </div>
+
+        <!-- LEAD TIME -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Lead Time (days)</label>
+            <input type="number" class="form-control"
+                   name="Lead_time"
+                   value="{{ component.Lead_time }}"
+                   data-old="{{ component.Lead_time }}">
+        </div>
+
+        <!-- CTED ORDER DATE -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">CTED Order Date</label>
+            <input type="date" class="form-control"
+                   name="CTED_order_date"
+                   value="{{ component.CTED_order_date }}"
+                   data-old="{{ component.CTED_order_date }}">
+        </div>
+
+        <!-- CTED DUE DATE -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">CTED Due Date</label>
+            <input type="date" class="form-control"
+                   name="CTED_due_date"
+                   value="{{ component.CTED_due_date }}"
+                   data-old="{{ component.CTED_due_date }}">
+        </div>
+
+        <!-- HAESSA ORDER DATE -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">HAESSA Order Date</label>
+            <input type="date" class="form-control"
+                   name="HAESSA_order_date"
+                   value="{{ component.HAESSA_order_date }}"
+                   data-old="{{ component.HAESSA_order_date }}">
+        </div>
+
+        <!-- HAESSA PAYMENT DATE -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">HAESSA Payment Date</label>
+            <input type="date" class="form-control"
+                   name="HAESSA_pay_date"
+                   value="{{ component.HAESSA_pay_date }}"
+                   data-old="{{ component.HAESSA_pay_date }}">
+        </div>
+
+        <!-- DELIVERY DATE -->
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">HAESSA Delivery Date</label>
+            <input type="date" class="form-control"
+                   name="HAESSA_delivery_date"
+                   value="{{ component.HAESSA_delivery_date }}"
+                   data-old="{{ component.HAESSA_delivery_date }}">
+        </div>
+
+        <!-- NOTES -->
+        <div class="col-md-12 mb-3">
+            <label class="form-label fw-bold">Notes</label>
+            <textarea class="form-control" name="Notes"
+                      rows="3"
+                      data-old="{{ component.Notes }}">{{ component.Notes }}</textarea>
+        </div>
+
+    </div>
+
+    <button class="btn btn-success">Save Changes</button>
+    <a href="{{ url_for('home') }}" class="btn btn-secondary">Cancel</a>
+
+</form>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("input, textarea").forEach(field => {
+        const oldVal = field.getAttribute("data-old") || "";
+        field.addEventListener("input", () => {
+            if (field.value !== oldVal) {
+                field.classList.add("changed-new");
+            } else {
+                field.classList.remove("changed-new");
+            }
+        });
+    });
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3 class="fw-bold mb-3">Add Component</h3>
+
+<form method="POST">
+
+    <div class="row">
+ <!-- ITEM NUMBER -->
+        <div class="mb-3">
+            <label class="form-label">Item Number</label>
+            <input type="text" name="Item_no" class="form-control" required>
+        </div>   
+        
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Coach Number</label>
+            <input type="text" class="form-control" name="Coach_no" required>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Section</label>
+            <input type="text" class="form-control" name="Section" required>
+        </div>
+
+        <div class="col-md-12 mb-3">
+            <label class="form-label fw-bold">Component</label>
+            <input type="text" class="form-control" name="Component" required>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Supplier</label>
+            <input type="text" class="form-control" name="Supplier">
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Quantity</label>
+            <input type="number" class="form-control" name="Quantity">
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">Lead Time (days)</label>
+            <input type="number" class="form-control" name="Lead_time">
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">CTED Order Date</label>
+            <input type="date" class="form-control" name="CTED_order_date">
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">CTED Due Date</label>
+            <input type="date" class="form-control" name="CTED_due_date">
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">HAESSA Order Date</label>
+            <input type="date" class="form-control" name="HAESSA_order_date">
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">HAESSA Payment Date</label>
+            <input type="date" class="form-control" name="HAESSA_pay_date">
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label class="form-label fw-bold">HAESSA Delivery Date</label>
+            <input type="date" class="form-control" name="HAESSA_delivery_date">
+        </div>
+
+        <div class="col-md-12 mb-3">
+            <label class="form-label fw-bold">Notes</label>
+            <textarea class="form-control" name="Notes" rows="3"></textarea>
+        </div>
+
+    </div>
+
+    <button type="submit" class="btn btn-success">Save Component</button>
+    <a href="{{ url_for('home') }}" class="btn btn-secondary">Cancel</a>
+
+</form>
+
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3 class="mb-4 fw-bold">Analytics Dashboard</h3>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+
+<style>
+    .chart-card canvas {
+        max-height: 260px !important;
+    }
+</style>
+
+<!-- ====================== OVERALL ====================== -->
+<div class="card shadow-sm p-3 mb-4 chart-card">
+    <h5 class="fw-bold">Overall Component Status</h5>
+    <canvas id="overallChart"></canvas>
+</div>
+
+<!-- ====================== PER COACH ====================== -->
+{% for coach in per_coach %}
+<div class="card shadow-sm p-3 mb-4 chart-card">
+    <h5 class="fw-bold">{{ coach['coach'] }}</h5>
+
+    <canvas id="coachChart_{{ loop.index }}"
+        data-labels='{{ coach["labels"] | tojson }}'
+        data-values='{{ coach["values"] | tojson }}'>
+    </canvas>
+</div>
+{% endfor %}
+
+<!-- ====================== WEEKLY ====================== -->
+<div class="card shadow-sm p-3 mb-4 chart-card">
+    <h5 class="fw-bold">Weekly Performance Trend</h5>
+    <canvas id="weeklyTrend"></canvas>
+</div>
+
+<!-- ====================== MONTHLY ====================== -->
+<div class="card shadow-sm p-3 mb-4 chart-card">
+    <h5 class="fw-bold">Monthly Performance Trend</h5>
+    <canvas id="monthlyTrend"></canvas>
+</div>
+
+<script>
+window.analyticsData = {
+    overall: {{ overall | tojson }},
+    per_coach: {{ per_coach | tojson }},
+    weekly_labels: {{ weekly_labels | tojson }},
+    weekly_values: {{ weekly_values | tojson }},
+    monthly_labels: {{ monthly_labels | tojson }},
+    monthly_values: {{ monthly_values | tojson }}
+};
+</script>
+
+<script src="/static/js/analytics.js"></script>
+
+{% endblock %}

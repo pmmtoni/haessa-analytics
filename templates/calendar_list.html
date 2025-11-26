@@ -1,0 +1,68 @@
+@app.route("/calendar")
+@login_required
+def calendar_view():
+    """
+    Renders the calendar page and supplies lists for filters.
+    The calendar.html page will fetch events via /api/events.
+    """
+
+    # Load all components once
+    comps = Components.query.all()
+
+    # Build events list (safe, JSON-ready)
+    events = []
+    for c in comps:
+        start = c.safe_date(c.CTED_due_date)
+        end = c.safe_date(c.HAESSA_delivery_date)
+
+        start_str = start.strftime("%Y-%m-%d") if start else ""
+        end_str = end.strftime("%Y-%m-%d") if end else ""
+
+        events.append({
+            "id": c.id,
+            "title": f"{c.Component} ({c.Coach_no})",
+            "start": start_str,
+            "end": end_str,
+            "status": c.Component_status or "",
+            "coach": c.Coach_no or "",
+            "component": c.Component or "",
+        })
+
+    # Build filter values
+    coaches = sorted({c.Coach_no for c in comps if c.Coach_no})
+    statuses = sorted({c.Component_status or "Unknown" for c in comps})
+
+    # Summary counts
+    today = date.today()
+
+    overdue = sum(
+        1 for c in comps
+        if c.safe_date(c.HAESSA_delivery_date)
+        and c.safe_date(c.CTED_due_date)
+        and c.safe_date(c.HAESSA_delivery_date) > c.safe_date(c.CTED_due_date)
+    )
+
+    due_today = sum(
+        1 for c in comps
+        if c.safe_date(c.CTED_due_date) == today
+    )
+
+    upcoming_week = sum(
+        1 for c in comps
+        if c.safe_date(c.CTED_due_date)
+        and 0 < (c.safe_date(c.CTED_due_date) - today).days <= 7
+    )
+
+    ctx = {
+        "events": events,     # required by your calendar.html
+        "coaches": coaches,
+        "statuses": statuses,
+        "summary": {
+            "overdue": overdue,
+            "due_today": due_today,
+            "upcoming_week": upcoming_week,
+            "total": len(comps),
+        }
+    }
+
+    return render_template("calendar.html", **ctx)
