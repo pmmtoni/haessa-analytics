@@ -2,6 +2,7 @@
 #  HAESSA Component Dashboard – PostgreSQL/SQLite compatible build
 # ================================================================
 
+from flask import send_file
 import os
 import json
 from datetime import datetime, date, timedelta
@@ -39,7 +40,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL", sqlite_path)
 
 # Fix Render’s "postgres://" → "postgresql://"
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://")
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgres://", "postgresql+psycopg2://")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -132,13 +134,17 @@ class AuditLog(db.Model):
 
     @property
     def old_value_json(self):
-        try: return json.loads(self.old_value or "{}")
-        except: return {}
+        try:
+            return json.loads(self.old_value or "{}")
+        except:
+            return {}
 
     @property
     def new_value_json(self):
-        try: return json.loads(self.new_value or "{}")
-        except: return {}
+        try:
+            return json.loads(self.new_value or "{}")
+        except:
+            return {}
 
 
 # ---------------------------------------------------------------
@@ -210,6 +216,7 @@ def init_app():
             db.session.commit()
             print("✅ Admin created")
 
+
 init_app()
 
 
@@ -267,7 +274,8 @@ def add_component():
         db.session.add(c)
         db.session.commit()
 
-        log_action(current_user.username, "Added component", f"Component {c.id}", new=c.Item_no)
+        log_action(current_user.username, "Added component",
+                   f"Component {c.id}", new=c.Item_no)
 
         flash("Component added.", "success")
         return redirect(url_for("home"))
@@ -327,7 +335,8 @@ def delete_component(id):
     db.session.delete(c)
     db.session.commit()
 
-    log_action(current_user.username, "Deleted component", f"Component {id}", old=old)
+    log_action(current_user.username, "Deleted component",
+               f"Component {id}", old=old)
 
     flash("Deleted.", "info")
     return redirect(url_for("home"))
@@ -400,10 +409,10 @@ def analytics():
         elif h_pay:
             category = "Paid"
 
-        elif h_delivery and h_delivery > cted_due:
+        elif h_delivery > cted_due:
             category = "Overdue"
 
-        elif h_delivery and h_delivery <= cted_due:
+        elif h_delivery <= cted_due:
             category = "On Time"
 
         else:
@@ -550,7 +559,8 @@ def api_events():
 @role_required("admin")
 def audit_logs():
     page = request.args.get("page", 1, type=int)
-    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).paginate(page=page, per_page=20)
+    logs = AuditLog.query.order_by(
+        AuditLog.timestamp.desc()).paginate(page=page, per_page=20)
     return render_template("audit_logs.html", logs=logs)
 
 
@@ -707,11 +717,14 @@ def daily_summary():
     return jsonify(results)
 
 
+@app.route('/download_db')
+def download_db():
+    return send_file('components.db', as_attachment=True)
 
 # ===============================================================
 # RUN
 # ===============================================================
 
+
 if __name__ == "__main__":
     app.run(debug=True)
-
