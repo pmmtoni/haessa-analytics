@@ -1,210 +1,170 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>HAESSA Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="/static/css/styles.css" rel="stylesheet">
+  <!-- Frappe Gantt - stable, fast CDN (UMD/global build) -->
+  <link rel="stylesheet" href="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+  <script src="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+    
+  <link rel="icon" href="data:,">
+
+  <title>{% block title %}HAESSA Dashboard{% endblock %}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    .container { max-width: 1400px; }
+    .brand-mark { font-weight: bold; font-size: 1.5rem; }
+    .sidebar { background: #f8f9fa; border-right: 1px solid #dee2e6; }
+    .list-group-item.active { background-color: #0d6efd; border-color: #0d6efd; }
+    @media (max-width: 992px) {
+      .sidebar { border-right: none; border-bottom: 1px solid #dee2e6; }
+    }
+    @media (max-width: 576px) {
+      .navbar-brand { font-size: 1.25rem; }
+      .form-control { font-size: 0.9rem; }
+    }
+    #gantt { height: 600px; width: 100%; }
+  </style>
 </head>
-
 <body>
-
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
-  <div class="container-fluid">
-
-    <a class="navbar-brand d-flex align-items-center" href="{{ url_for('home') }}">
-      <span class="brand-mark">HAESSA</span>
-    </a>
-
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu"
-      aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-
-    <div class="collapse navbar-collapse" id="navMenu">
-
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint=='home' %}active{% endif %}" 
-             href="{{ url_for('home') }}">Home</a>
-        </li>
-
-        {% if current_user.is_authenticated and current_user.role in ["admin", "editor"] %}
-        <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('add_component') }}">Add Component</a>
-        </li>
-        {% endif %}
-
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint=='analytics' %}active{% endif %}" 
-             href="{{ url_for('analytics') }}">Analytics</a>
-        </li>
-
-        <!-- FIXED: use calendar_view endpoint -->
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint=='calendar_view' %}active{% endif %}" 
-             href="{{ url_for('calendar_view') }}">Calendar</a>
-        </li>
-
-        {% if current_user.is_authenticated and current_user.role == 'admin' %}
+  <!-- Navbar with embedded search -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="{{ url_for('home') }}">
+        <span class="brand-mark">HAESSA</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu"
+              aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link {% if request.endpoint=='manage_users' %}active{% endif %}" 
-               href="{{ url_for('manage_users') }}">Users</a>
+            <a class="nav-link {% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Home</a>
           </li>
-
+          {% if current_user.is_authenticated and current_user.role in ["admin", "editor"] %}
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('add_component') }}">Add Component</a>
+            </li>
+          {% endif %}
           <li class="nav-item">
-            <a class="nav-link {% if request.endpoint=='audit_logs' %}active{% endif %}" 
-               href="{{ url_for('audit_logs') }}">Audit Logs</a>
+            <a class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}" href="{{ url_for('analytics') }}">Analytics</a>
           </li>
-        {% endif %}
-      </ul>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'calendar_view' %}active{% endif %}" href="{{ url_for('calendar_view') }}">Calendar</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'gantt' %}active{% endif %}" href="{{ url_for('gantt') }}">Gantt</a>
+          </li>
+          {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.endpoint == 'manage_users' %}active{% endif %}" href="{{ url_for('manage_users') }}">Users</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.endpoint == 'audit_logs' %}active{% endif %}" href="{{ url_for('audit_logs') }}">Audit Logs</a>
+            </li>
+          {% endif %}
+        </ul>
 
-      <ul class="navbar-nav ms-auto">
-        {% if current_user.is_authenticated %}
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-              {{ current_user.username }}
+        <!-- Embedded search bar -->
+        <form class="d-flex ms-auto my-2 my-lg-0" method="GET" action="{{ url_for('home') }}">
+          <input class="form-control me-2" type="search" name="search" placeholder="Search components..." aria-label="Search"
+                 value="{{ request.args.get('search', '') }}" style="max-width: 300px;">
+          <button class="btn btn-outline-light" type="submit">Search</button>
+        </form>
+
+        <!-- User menu -->
+        <ul class="navbar-nav ms-2">
+          {% if current_user.is_authenticated %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                {{ current_user.username }}
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+              </ul>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Sidebar (desktop only) -->
+  <div class="container-fluid mt-3">
+    <div class="row">
+      <aside class="col-lg-2 d-none d-lg-block sidebar pe-0">
+        <div class="list-group list-group-flush">
+          <a href="{{ url_for('home') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'home' %}active{% endif %}">
+            Dashboard
+          </a>
+          <a href="{{ url_for('add_component') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'add_component' %}active{% endif %}">
+            Add Component
+          </a>
+          <a href="{{ url_for('analytics') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'analytics' %}active{% endif %}">
+            Analytics
+          </a>
+          <a href="{{ url_for('calendar_view') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'calendar_view' %}active{% endif %}">
+            Calendar
+          </a>
+          <a href="{{ url_for('gantt') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'gantt' %}active{% endif %}">
+            Gantt
+          </a>
+          {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            <a href="{{ url_for('manage_users') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'manage_users' %}active{% endif %}">
+              Manage Users
             </a>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
-            </ul>
-          </li>
-        {% else %}
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
-        {% endif %}
-      </ul>
+            <a href="{{ url_for('audit_logs') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'audit_logs' %}active{% endif %}">
+              Audit Logs
+            </a>
+          {% endif %}
+        </div>
+      </aside>
 
+      <!-- Main content -->
+      <main class="col-lg-10 col-12">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for cat, msg in messages %}
+              <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
+                {{ msg }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
     </div>
   </div>
-</nav>
 
+  <!-- Footer -->
+  <footer class="mt-4 py-3 bg-dark text-light text-center">
+    <small>&copy; {{ current_year }} HAESSA Dashboard</small>
+  </footer>
 
-<div class="container-fluid mt-3">
-  <div class="row">
+  <!-- Scripts at bottom of body -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- LEFT SIDEBAR -->
-    <aside class="col-lg-2 d-none d-lg-block sidebar pe-0">
-
-      <div class="list-group list-group-flush">
-
-        <a href="{{ url_for('home') }}"
-           class="list-group-item list-group-item-action {% if request.endpoint=='home' %}active{% endif %}">
-          Dashboard
-        </a>
-
-        <a href="{{ url_for('add_component') }}"
-           class="list-group-item list-group-item-action {% if request.endpoint=='add_component' %}active{% endif %}">
-          Add Component
-        </a>
-
-        <a href="{{ url_for('analytics') }}"
-           class="list-group-item list-group-item-action {% if request.endpoint=='analytics' %}active{% endif %}">
-          Analytics
-        </a>
-
-        <!-- FIXED: calendar_view endpoint -->
-        <a href="{{ url_for('calendar_view') }}"
-           class="list-group-item list-group-item-action {% if request.endpoint=='calendar_view' %}active{% endif %}">
-          Calendar
-        </a>
-
-        {% if current_user.is_authenticated and current_user.role == 'admin' %}
-          <a href="{{ url_for('manage_users') }}"
-             class="list-group-item list-group-item-action {% if request.endpoint=='manage_users' %}active{% endif %}">
-            Manage Users
-          </a>
-
-          <a href="{{ url_for('audit_logs') }}"
-             class="list-group-item list-group-item-action {% if request.endpoint=='audit_logs' %}active{% endif %}">
-            Audit Logs
-          </a>
-        {% endif %}
-
-      </div>
-
-      <!-- Sidebar Search -->
-      {% if current_user.is_authenticated and current_user.role == 'admin' %}
-      <div class="p-3">
-        <form id="sidebar-search" method="get" action="{{ url_for('manage_users') }}">
-          <div class="input-group input-group-sm">
-            <input name="q" class="form-control" placeholder="Search users..."
-                   value="{{ request.args.get('q','') }}">
-            <button class="btn btn-outline-secondary" type="submit">Search</button>
-          </div>
-        </form>
-      </div>
-      {% endif %}
-
-    </aside>
-
-    <!-- MAIN CONTENT -->
-    <main class="col-lg-10 col-12">
-
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for cat, msg in messages %}
-            <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
-              {{ msg }}
-              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
-
-      {% block content %}{% endblock %}
-    </main>
-
-  </div>
-</div>
-
-
-<footer class="mt-4 py-3 bg-dark text-light text-center">
-  <small>&copy; {{ datetime.utcnow().year }} HAESSA Dashboard</small>
-</footer>
-
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll("table th.sortable").forEach(header => {
-        header.addEventListener("click", () => {
-            const table = header.closest("table");
-            const tbody = table.querySelector("tbody");
-            const index = Array.from(header.parentNode.children).indexOf(header);
-            const asc = header.classList.toggle("asc");
-
-            const rows = Array.from(tbody.querySelectorAll("tr")).sort((a, b) => {
-                const aText = a.children[index].innerText.trim();
-                const bText = b.children[index].innerText.trim();
-
-                // numeric compare
-                if (!isNaN(aText) && !isNaN(bText)) {
-                    return asc ? aText - bText : bText - aText;
-                }
-
-                // date compare
-                const aDate = Date.parse(aText);
-                const bDate = Date.parse(bText);
-                if (!isNaN(aDate) && !isNaN(bDate)) {
-                    return asc ? aDate - bDate : bDate - aDate;
-                }
-
-                // string compare
-                return asc
-                    ? aText.localeCompare(bText)
-                    : bText.localeCompare(aText);
-            });
-
-            rows.forEach(row => tbody.appendChild(row));
-        });
+  <!-- Highlight search matches in tables -->
+  <script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const searchTerm = new URLSearchParams(window.location.search).get("search");
+    if (!searchTerm || !document.querySelector("table")) return;
+    const regex = new RegExp(`(${searchTerm})`, "gi");
+    document.querySelectorAll("td").forEach(td => {
+      if (td.textContent.toLowerCase().includes(searchTerm.toLowerCase())) {
+        td.innerHTML = td.innerHTML.replace(regex, '<mark class="bg-warning">$1</mark>');
+      }
     });
-});
-</script>
-
-
+  });
+  </script>
 </body>
 </html>
