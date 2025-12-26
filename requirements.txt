@@ -1,7 +1,7 @@
-# Flask Web Framework
+# Core web framework
 Flask==3.0.3
 
-# Database ORM
+# Database
 Flask-SQLAlchemy==3.1.1
 SQLAlchemy==2.0.35
 
@@ -9,9 +9,19 @@ SQLAlchemy==2.0.35
 Flask-Login==0.6.3
 Werkzeug==3.0.3
 
-# Deployment (Gunicorn is used by Render)
+# Deployment
 gunicorn==23.0.0
 
-# Optional utilities (safe to keep)
-psycopg2-binary==2.9.9      # PostgreSQL driver
-python-dotenv==1.0.1         # for local .env configs
+# Database drivers (PostgreSQL for Render, SQLite works locally)
+psycopg2-binary==2.9.9
+
+# Utilities
+python-dotenv==1.0.1
+
+# Data analytics & dashboard features
+pandas>=2.2.3
+numpy>=1.26.4          # often needed by pandas
+openpyxl>=3.1.5        # if you read/write Excel files
+
+# Optional: better date/time handling (very useful for dashboards)
+python-dateutil>=2.9.0
