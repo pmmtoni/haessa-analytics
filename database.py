@@ -21,7 +21,7 @@ def init_db():
             Item_no INTEGER PRIMARY KEY AUTOINCREMENT,
             Coach_no TEXT NOT NULL,
             Component TEXT NOT NULL,
-            Section TEXT,
+            Coach_Type TEXT,
             Quantity INTEGER,
             HAESSA_Order_Date DATE,
             HAESSA_Paydate DATE,

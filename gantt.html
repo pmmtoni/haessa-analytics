@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Gantt Chart - HAESSA Components{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h3 class="mb-4">Component Delivery Gantt Chart</h3>
+  <p class="text-muted mb-4">
+    Today is highlighted with a bright green vertical line.<br>
+    Bars show planned → actual delivery periods.
+  </p>
+
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <div id="gantt" style="height: 600px; width: 100%;"></div>
+    </div>
+  </div>
+
+  {% if gantt_data|length == 0 %}
+  <div class="alert alert-info mt-4">
+    No components with valid dates found.
+  </div>
+  {% endif %}
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const ganttData = {{ gantt_data | tojson }};
+  const today = "{{ today }}";
+
+  console.log("Gantt chart script running...");
+  console.log("Data length:", ganttData.length);
+  console.log("Today:", today);
+
+  if (ganttData.length === 0) {
+    console.warn("No tasks to display");
+    return;
+  }
+
+  const tasks = ganttData.map((item, index) => ({
+    id: `task-${index}`,
+    name: item.task,
+    start: item.start,
+    end: item.end,
+    progress: 100,
+    custom_class: item.bg ? `bar-${item.bg}` : 'bar-primary'
+  }));
+
+  const gantt = new Gantt("#gantt", tasks, {
+    view_mode: 'Day',
+    date_format: 'YYYY-MM-DD'
+  });
+
+  // Improved Today line - bright lime green, thick, high contrast
+  const todayDate = new Date(today);
+  const todayX = gantt.getX(todayDate);
+  const svg = document.querySelector("#gantt svg");
+  if (svg) {
+    // Vertical line: lime green, thick, solid
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", todayX);
+    line.setAttribute("y1", "0");
+    line.setAttribute("x2", todayX);
+    line.setAttribute("y2", "100%");
+    line.setAttribute("stroke", "#00ff00");           // bright lime green
+    line.setAttribute("stroke-width", "6");            // thicker
+    line.setAttribute("stroke-opacity", "1");          // fully opaque
+    line.setAttribute("stroke-dasharray", "none");     // solid
+    svg.appendChild(line);
+
+    // Label background box (dark with lime border)
+    const labelBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    labelBg.setAttribute("x", todayX + 3);
+    labelBg.setAttribute("y", "6");
+    labelBg.setAttribute("width", "70");
+    labelBg.setAttribute("height", "28");
+    labelBg.setAttribute("rx", "6");
+    labelBg.setAttribute("fill", "#1a1a1a");           // dark background
+    labelBg.setAttribute("stroke", "#00ff00");
+    labelBg.setAttribute("stroke-width", "2");
+    svg.appendChild(labelBg);
+
+    // Text label - white text, bold
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", todayX + 10);
+    label.setAttribute("y", "24");
+    label.setAttribute("fill", "white");
+    label.setAttribute("font-size", "15");
+    label.setAttribute("font-weight", "bold");
+    label.textContent = "Today";
+    svg.appendChild(label);
+
+    console.log("Today line added successfully");
+  } else {
+    console.warn("SVG element not found - Today line not added");
+  }
+});
+</script>
+{% endblock %}
