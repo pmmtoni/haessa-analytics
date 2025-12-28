@@ -222,41 +222,67 @@ def role_required(*roles):
 
 
 
+from datetime import date
+
 def derive_component_status(c):
     """
-    Returns derived status string based on priority rules.
-    Falls back to manual Component_status if no rule matches.
+    Computes the derived status based on the priority rules you specified.
+    Also returns a list of missing fields if the status indicates incomplete data.
+    
+    Rules (in priority order):
+    - Delivered              → if HAESSA_delivery_date is not null
+    - Being processed        → if HAESSA_order_date is not null
+    - Haessa to order        → if CTED_order_date is not null (but HAESSA_order_date is null)
+    - CTED due date not provided → if CTED_due_date is null (but CTED_order_date exists)
+    - Lead time not provided → if Lead_time is null (but CTED_order_date exists)
+    - CTED to place order    → if CTED_order_date is null
+    - Unknown                → if no meaningful dates are present at all
     """
+    missing = []
+
+    # Helper to check if a date field is effectively null/empty
+    def is_empty_date(val):
+        return val is None or (isinstance(val, str) and not val.strip())
+
     today = date.today()
 
-    # Rule 1: CTED not yet ordered
-    if not c.CTED_order_date:
-        return "CTED to place order"
+    # 1. Delivered (highest priority)
+    if not is_empty_date(c.HAESSA_delivery_date):
+        return "Delivered", missing  # no missing fields needed
 
-    # Rule 2: Lead time unknown after CTED order
-    if c.CTED_order_date and (c.Lead_time is None or c.Lead_time == 0):
-        return "Component lead time is unknown"
+    # 2. Being processed
+    if not is_empty_date(c.HAESSA_order_date):
+        return "Being processed", missing
 
-    # Rule 3: Derive CTED due date if missing
-    if c.CTED_order_date and c.Lead_time and not c.CTED_due_date:
-        derived_due = c.CTED_order_date + timedelta(days=c.Lead_time)
-        c.CTED_due_date = derived_due  # optional: persist if you want
-        db.session.commit()
+    # 3. Haessa to order
+    if not is_empty_date(c.CTED_order_date):
+        if is_empty_date(c.HAESSA_order_date):
+            return "Haessa to order", missing
 
-    # Rule 4: Haessa not yet ordered
-    if c.CTED_due_date and not c.HAESSA_order_date:
-        return "Haessa to place order"
+    # 4. CTED due date not provided
+    if not is_empty_date(c.CTED_order_date) and is_empty_date(c.CTED_due_date):
+        missing.append("CTED_due_date")
+        return "CTED due date not provided", missing
 
-    # Rule 5: Haessa ordered but no delivery date
-    if c.HAESSA_order_date and not c.HAESSA_delivery_date:
-        return "Haessa to provide component delivery date"
+    # 5. Lead time not provided
+    if not is_empty_date(c.CTED_order_date) and (c.Lead_time is None or c.Lead_time == 0):
+        missing.append("Lead_time")
+        return "Lead time not provided", missing
 
-    # Fallback: use manual status or "Unknown"
-    return c.Component_status or "Unknown"
+    # 6. CTED to place order
+    if is_empty_date(c.CTED_order_date):
+        missing.append("CTED_order_date")
+        return "CTED to place order", missing
 
+    # Final fallback: Unknown (many fields missing)
+    if all(is_empty_date(getattr(c, field)) for field in [
+        "CTED_order_date", "CTED_due_date", "HAESSA_order_date", "HAESSA_delivery_date"
+    ]) and (c.Lead_time is None or c.Lead_time == 0):
+        missing = ["CTED_order_date", "CTED_due_date", "HAESSA_order_date", "HAESSA_delivery_date", "Lead_time"]
+        return "Unknown", missing
 
-
-
+    # If we reach here, use the stored status or fallback
+    return c.Component_status or "Unknown", missing
 # ---------------------------------------------------------------
 # INITIAL SETUP (SAFE FOR POSTGRES + SQLITE)
 # ---------------------------------------------------------------
@@ -369,17 +395,18 @@ def add_globals():
 # ---------------------------------------------------------------
 # ROUTES â€” HOME PAGE
 # ---------------------------------------------------------------
-
+#from datetime import date, datetime, timedelta  # Add these imports at the top of app.py if missing
 
 @login_required
 @app.route("/", methods=["GET", "POST"])
 @app.route("/home", methods=["GET", "POST"])
 def home():
-    query = Components.query
-
     search = request.args.get("search", "").strip()
     status_filter = request.args.get("status", "").strip()
 
+    query = Components.query
+
+    # Search filter
     if search:
         search_like = f"%{search}%"
         query = query.filter(
@@ -391,23 +418,51 @@ def home():
             )
         )
 
+    # Status filter - handle derived statuses dynamically
     if status_filter:
-        query = query.filter(Components.Component_status == status_filter)
+        status_lower = status_filter.lower()
+        if status_lower == "delivered":
+            query = query.filter(Components.HAESSA_delivery_date.isnot(None))
+        elif status_lower == "overdue":
+            today = date.today()
+            query = query.filter(
+                Components.CTED_due_date < today,
+                Components.HAESSA_delivery_date == None
+            )
+        elif status_lower == "unknown":
+            query = query.filter(
+                db.and_(
+                    Components.Lead_time == None,
+                    Components.CTED_order_date == None,
+                    Components.CTED_due_date == None,
+                    Components.HAESSA_order_date == None,
+                    Components.HAESSA_delivery_date == None
+                )
+            )
+        else:
+            # Direct match for manual statuses (case-insensitive)
+            query = query.filter(db.func.lower(Components.Component_status) == status_lower)
 
+    # Fetch components
     components = query.order_by(Components.CTED_due_date.asc()).all()
 
     today = date.today()
 
     for c in components:
-        c.display_status = derive_component_status(c)
+        # Unpack the tuple returned by derive_component_status
+        status_tuple = derive_component_status(c)
+        c.display_status = status_tuple[0]  # string status
+        c.missing_fields = status_tuple[1] if len(status_tuple) > 1 else []  # list of missing fields
 
+        # Safe CTED due date parsing
         c.cted_due_date_as_date = None
         if c.CTED_due_date:
             try:
-                c.cted_due_date_as_date = datetime.strptime(c.CTED_due_date, "%Y-%m-%d").date()
+                c.cted_due_date_as_date = datetime.strptime(c.CTED_due_date.strip(), "%Y-%m-%d").date()
             except (ValueError, TypeError):
-                pass
+                pass  # invalid date string → skip
 
+        # Overdue check
         c.is_overdue = (
             c.cted_due_date_as_date is not None
             and c.cted_due_date_as_date < today
@@ -416,7 +471,15 @@ def home():
 
     overdue_count = len([c for c in components if c.is_overdue])
 
-    status_choices = [s[0] for s in db.session.query(Components.Component_status.distinct()).all() if s[0]]
+    # Compute status choices: DB values + derived ones
+    db_statuses = db.session.query(Components.Component_status.distinct())\
+                           .filter(Components.Component_status.isnot(None))\
+                           .all()
+    db_status_list = sorted(set([s[0].strip().title() for s in db_statuses if s[0]]))
+
+    # Always include derived statuses
+    derived_statuses = ["Pending", "Ordered", "Overdue", "Delivered", "Unknown"]
+    status_choices = sorted(set(db_status_list + derived_statuses))
 
     return render_template(
         "home.html",
@@ -425,9 +488,7 @@ def home():
         status_filter=status_filter,
         status_choices=status_choices,
         overdue_count=overdue_count
-    )
-
-# ---------------------------------------------------------------
+    )# ---------------------------------------------------------------
 # ADD COMPONENT
 # ---------------------------------------------------------------
 @app.route("/component/add", methods=["GET", "POST"])
@@ -470,12 +531,12 @@ def add_component():
 
 @app.route("/edit_component/<int:id>", methods=["GET", "POST"])
 @login_required
-@role_required("admin", "editor")  # Allows both roles
+@role_required("admin", "editor")
 def edit_component(id):
     component = Components.query.get_or_404(id)
 
     if request.method == "POST":
-        # STEP 1: Capture OLD values BEFORE any changes
+        # Capture OLD values for audit log (include ALL fields)
         old = {
             "Item_no": component.Item_no,
             "Coach_no": component.Coach_no,
@@ -483,27 +544,35 @@ def edit_component(id):
             "Component": component.Component,
             "Supplier": component.Supplier,
             "Quantity": component.Quantity,
+            "Lead_time": component.Lead_time,
+            "CTED_order_date": component.CTED_order_date,
+            "CTED_due_date": component.CTED_due_date,
+            "HAESSA_order_date": component.HAESSA_order_date,
+            "HAESSA_pay_date": component.HAESSA_pay_date,
+            "HAESSA_delivery_date": component.HAESSA_delivery_date,
             "Component_status": component.Component_status,
             "Notes": component.Notes,
-            "CTED_due_date": component.CTED_due_date,  # Capture dates
-            "HAESSA_delivery_date": component.HAESSA_delivery_date,  # Add more dates as needed
-            # Add any other fields you edit
         }
 
-        # STEP 2: Apply new values from form
+        # Update ALL fields from form (safe with defaults)
         component.Item_no = request.form.get("Item_no") or component.Item_no
         component.Coach_no = request.form.get("Coach_no") or component.Coach_no
         component.Coach_Type = request.form.get("Coach_Type") or component.Coach_Type
         component.Component = request.form.get("Component") or component.Component
         component.Supplier = request.form.get("Supplier") or component.Supplier
         component.Quantity = request.form.get("Quantity", type=int) or component.Quantity
+        component.Lead_time = request.form.get("Lead_time", type=int) or component.Lead_time
+        component.CTED_order_date = request.form.get("CTED_order_date") or component.CTED_order_date
+        component.CTED_due_date = request.form.get("CTED_due_date") or component.CTED_due_date
+        component.HAESSA_order_date = request.form.get("HAESSA_order_date") or component.HAESSA_order_date
+        component.HAESSA_pay_date = request.form.get("HAESSA_pay_date") or component.HAESSA_pay_date
+        component.HAESSA_delivery_date = request.form.get("HAESSA_delivery_date") or component.HAESSA_delivery_date
         component.Component_status = request.form.get("Component_status") or component.Component_status
         component.Notes = request.form.get("Notes") or component.Notes
-        component.CTED_due_date = request.form.get("CTED_due_date") or component.CTED_due_date
-        component.HAESSA_delivery_date = request.form.get("HAESSA_delivery_date") or component.HAESSA_delivery_date
-        # Add other fields as needed
 
-        # STEP 3: Capture NEW values AFTER changes
+        db.session.commit()
+
+        # Capture NEW values for audit log
         new = {
             "Item_no": component.Item_no,
             "Coach_no": component.Coach_no,
@@ -511,15 +580,17 @@ def edit_component(id):
             "Component": component.Component,
             "Supplier": component.Supplier,
             "Quantity": component.Quantity,
+            "Lead_time": component.Lead_time,
+            "CTED_order_date": component.CTED_order_date,
+            "CTED_due_date": component.CTED_due_date,
+            "HAESSA_order_date": component.HAESSA_order_date,
+            "HAESSA_pay_date": component.HAESSA_pay_date,
+            "HAESSA_delivery_date": component.HAESSA_delivery_date,
             "Component_status": component.Component_status,
             "Notes": component.Notes,
-            "CTED_due_date": component.CTED_due_date,
-            "HAESSA_delivery_date": component.HAESSA_delivery_date,
         }
 
-        db.session.commit()
-
-        # STEP 4: Log only actual changes
+        # Log only actual changes
         log_action(
             username=current_user.username,
             action="Edited component",
@@ -529,12 +600,10 @@ def edit_component(id):
         )
 
         flash("Component updated successfully!", "success")
-        return redirect(url_for("home"))  # or your list route
+        return redirect(url_for("home"))
 
-    # GET: show form
+    # GET: show edit form
     return render_template("edit_component.html", component=component)
-
-
 # ---------------------------------------------------------------
 # DELETE COMPONENT (ADMIN ONLY)
 # ---------------------------------------------------------------
