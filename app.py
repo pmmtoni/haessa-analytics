@@ -378,7 +378,7 @@ HAESSA Daily Summary - {today}
 View Dashboard: http://your-app-url/home
     """
 
-    send_email("admin@example.com", "HAESSA Daily Summary", body)  # Replace with your ADMIN_EMAIL
+    send_email("pmmtoni@gmail.com", "HAESSA Daily Summary", body)  # Replace with your ADMIN_EMAIL
 
 # Scheduler (add if not already)
 scheduler = BackgroundScheduler()
@@ -397,16 +397,110 @@ def add_globals():
 # ---------------------------------------------------------------
 #from datetime import date, datetime, timedelta  # Add these imports at the top of app.py if missing
 
+# @login_required
+# @app.route("/", methods=["GET", "POST"])
+# @app.route("/home", methods=["GET", "POST"])
+# def home():
+#     search = request.args.get("search", "").strip()
+#     status_filter = request.args.get("status", "").strip()
+
+#     query = Components.query
+
+#     # Search filter
+#     if search:
+#         search_like = f"%{search}%"
+#         query = query.filter(
+#             db.or_(
+#                 Components.Component.ilike(search_like),
+#                 Components.Coach_no.ilike(search_like),
+#                 Components.Supplier.ilike(search_like),
+#                 Components.Item_no.ilike(search_like)
+#             )
+#         )
+
+#     # Status filter - handle derived statuses dynamically
+#     if status_filter:
+#         status_lower = status_filter.lower()
+#         if status_lower == "delivered":
+#             query = query.filter(Components.HAESSA_delivery_date.isnot(None))
+#         elif status_lower == "overdue":
+#             today = date.today()
+#             query = query.filter(
+#                 Components.CTED_due_date < today,
+#                 Components.HAESSA_delivery_date == None
+#             )
+#         elif status_lower == "unknown":
+#             query = query.filter(
+#                 db.and_(
+#                     Components.Lead_time == None,
+#                     Components.CTED_order_date == None,
+#                     Components.CTED_due_date == None,
+#                     Components.HAESSA_order_date == None,
+#                     Components.HAESSA_delivery_date == None
+#                 )
+#             )
+#         else:
+#             # Direct match for manual statuses (case-insensitive)
+#             query = query.filter(db.func.lower(Components.Component_status) == status_lower)
+
+#     # Fetch components
+#     components = query.order_by(Components.CTED_due_date.asc()).all()
+
+#     today = date.today()
+
+#     for c in components:
+#         # Unpack the tuple returned by derive_component_status
+#         status_tuple = derive_component_status(c)
+#         c.display_status = status_tuple[0]  # string status
+#         c.missing_fields = status_tuple[1] if len(status_tuple) > 1 else []  # list of missing fields
+
+#         # Safe CTED due date parsing
+#         c.cted_due_date_as_date = None
+#         if c.CTED_due_date:
+#             try:
+#                 c.cted_due_date_as_date = datetime.strptime(c.CTED_due_date.strip(), "%Y-%m-%d").date()
+#             except (ValueError, TypeError):
+#                 pass  # invalid date string → skip
+
+#         # Overdue check
+#         c.is_overdue = (
+#             c.cted_due_date_as_date is not None
+#             and c.cted_due_date_as_date < today
+#             and c.display_status not in ["Completed", "Delivered"]
+#         )
+
+#     overdue_count = len([c for c in components if c.is_overdue])
+
+#     # Compute status choices: DB values + derived ones
+#     db_statuses = db.session.query(Components.Component_status.distinct())\
+#                            .filter(Components.Component_status.isnot(None))\
+#                            .all()
+#     db_status_list = sorted(set([s[0].strip().title() for s in db_statuses if s[0]]))
+
+#     # Always include derived statuses
+#     derived_statuses = ["Pending", "Ordered", "Overdue", "Delivered", "Unknown"]
+#     status_choices = sorted(set(db_status_list + derived_statuses))
+
+#     return render_template(
+#         "home.html",
+#         components=components,
+#         search=search,
+#         status_filter=status_filter,
+#         status_choices=status_choices,
+#         overdue_count=overdue_count
+#     )
+
+
 @login_required
-@app.route("/", methods=["GET", "POST"])
-@app.route("/home", methods=["GET", "POST"])
+@app.route("/", methods=["GET"])
+@app.route("/home", methods=["GET"])
 def home():
     search = request.args.get("search", "").strip()
     status_filter = request.args.get("status", "").strip()
 
+    # Base query – no status filter yet
     query = Components.query
 
-    # Search filter
     if search:
         search_like = f"%{search}%"
         query = query.filter(
@@ -418,77 +512,58 @@ def home():
             )
         )
 
-    # Status filter - handle derived statuses dynamically
-    if status_filter:
-        status_lower = status_filter.lower()
-        if status_lower == "delivered":
-            query = query.filter(Components.HAESSA_delivery_date.isnot(None))
-        elif status_lower == "overdue":
-            today = date.today()
-            query = query.filter(
-                Components.CTED_due_date < today,
-                Components.HAESSA_delivery_date == None
-            )
-        elif status_lower == "unknown":
-            query = query.filter(
-                db.and_(
-                    Components.Lead_time == None,
-                    Components.CTED_order_date == None,
-                    Components.CTED_due_date == None,
-                    Components.HAESSA_order_date == None,
-                    Components.HAESSA_delivery_date == None
-                )
-            )
-        else:
-            # Direct match for manual statuses (case-insensitive)
-            query = query.filter(db.func.lower(Components.Component_status) == status_lower)
-
-    # Fetch components
+    # Get all matching components (status filter applied in Python later)
     components = query.order_by(Components.CTED_due_date.asc()).all()
 
     today = date.today()
 
+    # Compute derived status and other attributes for every component
+    filtered_components = []
     for c in components:
-        # Unpack the tuple returned by derive_component_status
         status_tuple = derive_component_status(c)
-        c.display_status = status_tuple[0]  # string status
-        c.missing_fields = status_tuple[1] if len(status_tuple) > 1 else []  # list of missing fields
+        c.display_status = status_tuple[0]
+        c.missing_fields = status_tuple[1] if len(status_tuple) > 1 else []
 
-        # Safe CTED due date parsing
         c.cted_due_date_as_date = None
         if c.CTED_due_date:
             try:
                 c.cted_due_date_as_date = datetime.strptime(c.CTED_due_date.strip(), "%Y-%m-%d").date()
             except (ValueError, TypeError):
-                pass  # invalid date string → skip
+                pass
 
-        # Overdue check
         c.is_overdue = (
             c.cted_due_date_as_date is not None
             and c.cted_due_date_as_date < today
             and c.display_status not in ["Completed", "Delivered"]
         )
 
-    overdue_count = len([c for c in components if c.is_overdue])
+        # Apply status filter in Python (after derivation)
+        if not status_filter or c.display_status.lower() == status_filter.lower():
+            filtered_components.append(c)
 
-    # Compute status choices: DB values + derived ones
+    overdue_count = len([c for c in filtered_components if c.is_overdue])
+
+    # Status choices: DB + derived (same as before)
     db_statuses = db.session.query(Components.Component_status.distinct())\
                            .filter(Components.Component_status.isnot(None))\
                            .all()
     db_status_list = sorted(set([s[0].strip().title() for s in db_statuses if s[0]]))
 
-    # Always include derived statuses
-    derived_statuses = ["Pending", "Ordered", "Overdue", "Delivered", "Unknown"]
+    derived_statuses = ["Pending", "Ordered", "Overdue", "Delivered", "Unknown", "Haessa to order", "CTED to place order"]
     status_choices = sorted(set(db_status_list + derived_statuses))
 
     return render_template(
         "home.html",
-        components=components,
+        components=filtered_components,          # ← filtered list
         search=search,
         status_filter=status_filter,
         status_choices=status_choices,
         overdue_count=overdue_count
-    )# ---------------------------------------------------------------
+    )
+
+
+
+# ---------------------------------------------------------------
 # ADD COMPONENT
 # ---------------------------------------------------------------
 @app.route("/component/add", methods=["GET", "POST"])
@@ -711,112 +786,278 @@ def favicon():
 #  ANALYTICS ROUTE
 # ===============================================================
 
-import calendar
+# import calendar
+
+# @app.route("/analytics")
+# @login_required
+# @role_required("admin", "editor")
+# def analytics():
+#     components = Components.query.all()
+    
+#     today = date.today()
+#     generated_by = current_user.username
+#     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+#     # Group by Coach_no
+#     coach_data = defaultdict(lambda: defaultdict(int))
+#     status_counts = defaultdict(int)
+    
+#     # Containers for all trend periods
+#     due_date_groups = defaultdict(list)  # key: date object → list of 1/0 (on-time or not)
+    
+#     for c in components:
+#         coach = c.Coach_no or "Unknown"
+#         status = (c.Component_status or "Unknown").strip().title()
+        
+#         # Normalize status
+#         if status.lower() in ['pending', 'ordered', 'in progress']:
+#             display_status = "Pending"
+#         elif status.lower() in ['completed', 'delivered', 'done']:
+#             display_status = "Completed"
+#         elif c.CTED_due_date:
+#             try:
+#                 due_date_pd = pd.to_datetime(c.CTED_due_date)
+#                 if due_date_pd.date() < today and status.lower() not in ['completed', 'delivered']:
+#                     display_status = "Overdue"
+#                 else:
+#                     display_status = status
+#             except:
+#                 display_status = status
+#         else:
+#             display_status = status
+        
+#         coach_data[coach][display_status] += 1
+#         status_counts[display_status] += 1
+        
+#         # Collect on-time data for trends (only if due date exists)
+#         if c.CTED_due_date:
+#             try:
+#                 due_date = pd.to_datetime(c.CTED_due_date).date()
+#                 is_completed = status.lower() in ['completed', 'delivered', 'done']
+#                 # On-time = completed AND due date has passed (or is today)
+#                 is_on_time = 1 if (is_completed and due_date <= today) else 0
+#                 due_date_groups[due_date].append(is_on_time)
+#             except:
+#                 pass
+    
+#     # === Coach & Overall Charts + Drill-Down Data ===
+#     chart_data = []
+#     total_coaches = len(coach_data)
+
+#     for coach, counts in coach_data.items():
+#         # Get all components for this coach
+#         coach_components = [c for c in components if (c.Coach_no or "Unknown") == coach]
+#         total = len(coach_components)
+
+#         # Prepare component details for drill-down modal
+#         component_details = []
+#         for c in coach_components:
+#             lead_time = c.Lead_time or 0
+#             due_date_str = c.CTED_due_date
+#             due_date = pd.to_datetime(due_date_str).date() if due_date_str else None
+
+#             component_details.append({
+#                 "Item_no": c.Item_no or "",
+#                 "Component": c.Component or "",
+#                 "Supplier": c.Supplier or "",
+#                 "Quantity": c.Quantity or "",
+#                 "Lead_time": lead_time,
+#                 "CTED_due_date": due_date_str or "",
+#                 "Component_status": c.Component_status or ""
+#             })
+
+#         chart_data.append({
+#             "coach": coach,
+#             "labels": list(counts.keys()),
+#             "values": list(counts.values()),
+#             "total": total,
+#             "components": component_details  # For drill-down modal
+#         })
+
+#     # Overall summary
+#     overall_chart = {
+#         "labels": list(status_counts.keys()),
+#         "values": list(status_counts.values()),
+#         "total": len(components)
+#     }
+
+#     # === SUPPLIER PERFORMANCE TRENDS (Monthly) ===
+#     supplier_trends = defaultdict(lambda: defaultdict(list))
+
+#     for c in components:
+#         if c.CTED_due_date and c.Supplier:
+#             try:
+#                 due_date = pd.to_datetime(c.CTED_due_date).date()
+#                 supplier = c.Supplier.strip() or "Unknown"
+#                 is_completed = (c.Component_status or "").lower() in ['completed', 'delivered', 'done']
+#                 is_on_time = 1 if (is_completed and due_date <= today) else 0
+#                 month_key = due_date.strftime("%Y-%m")
+#                 supplier_trends[supplier][month_key].append(is_on_time)
+#             except:
+#                 pass
+
+#     supplier_chart_data = []
+#     suppliers = sorted(supplier_trends.keys())
+#     for supplier in suppliers:
+#         values = []
+#         for i in range(11, -1, -1):
+#             month_date = today.replace(day=1) - pd.DateOffset(months=i)
+#             month_key = month_date.strftime("%Y-%m")
+#             rates = supplier_trends[supplier].get(month_key, [])
+#             pct = round(sum(rates) / len(rates) * 100, 1) if rates else 0
+#             values.append(pct)
+#         supplier_chart_data.append({
+#             "supplier": supplier,
+#             "values": values
+#         })
+
+#     # === CURRENT PERIOD ALERT (<90%) ===
+#     current_month_key = today.strftime("%Y-%m")
+#     current_rates = []
+#     for d, rates in due_date_groups.items():
+#         if d.strftime("%Y-%m") == current_month_key:
+#             current_rates.extend(rates)
+#     current_period_pct = round(sum(current_rates) / len(current_rates) * 100, 1) if current_rates else 100
+#     show_alert = current_period_pct < 90
+
+#     # === DAILY: Last 30 days ===
+#     daily_labels = []
+#     daily_values = []
+#     for offset in range(29, -1, -1):
+#         d = today - timedelta(days=offset)
+#         daily_labels.append(d.strftime("%b %d"))
+#         rates = due_date_groups.get(d, [])
+#         pct = sum(rates) / len(rates) * 100 if rates else 0
+#         daily_values.append(round(pct, 1))
+
+#     # === WEEKLY: Last 12 weeks ===
+#     weekly_labels = []
+#     weekly_values = []
+#     for week_offset in range(11, -1, -1):  # Oldest to newest
+#         week_monday = today - timedelta(days=today.weekday()) - timedelta(weeks=week_offset)
+#         week_sunday = week_monday + timedelta(days=6)
+#         label = f"{week_monday.strftime('%b %d')}-{week_sunday.strftime('%d')}"
+#         weekly_labels.append(label)
+
+#         week_rates = []
+#         current = week_monday
+#         while current <= week_sunday:
+#             week_rates.extend(due_date_groups.get(current, []))
+#             current += timedelta(days=1)
+
+#         pct = sum(week_rates) / len(week_rates) * 100 if week_rates else 0
+#         weekly_values.append(round(pct, 1))
+
+#     # === MONTHLY: Last 12 months ===
+#     monthly_labels = []
+#     monthly_values = []
+#     for i in range(11, -1, -1):
+#         month_date = today.replace(day=1) - pd.DateOffset(months=i)
+#         monthly_labels.append(calendar.month_abbr[month_date.month])
+
+#         month_rates = []
+#         for d, rates in due_date_groups.items():
+#             if d.strftime("%Y-%m") == month_date.strftime("%Y-%m"):
+#                 month_rates.extend(rates)
+
+#         pct = sum(month_rates) / len(month_rates) * 100 if month_rates else 0
+#         monthly_values.append(round(pct, 1))
+
+#     # === Render Template ===
+#     return render_template("analytics.html",
+#                            chart_data=chart_data,
+#                            overall_chart=overall_chart,
+#                            total_coaches=total_coaches,
+#                            generated_by=generated_by,
+#                            generated_at=generated_at,
+#                            daily_labels=daily_labels,
+#                            daily_values=daily_values,
+#                            weekly_labels=weekly_labels,
+#                            weekly_values=weekly_values,
+#                            monthly_labels=monthly_labels,
+#                            monthly_values=monthly_values,
+#                            supplier_chart_data=supplier_chart_data,
+#                            current_period_pct=current_period_pct,
+#                            show_alert=show_alert)
+
+
 
 @app.route("/analytics")
 @login_required
 @role_required("admin", "editor")
 def analytics():
     components = Components.query.all()
-    
+
     today = date.today()
     generated_by = current_user.username
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    
-    # Group by Coach_no
+
+    # Compute derived status for all components
+    for c in components:
+        status_tuple = derive_component_status(c)
+        c.display_status = status_tuple[0]
+        c.missing_fields = status_tuple[1] if len(status_tuple) > 1 else []
+
+    # === Coach & Status Grouping ===
     coach_data = defaultdict(lambda: defaultdict(int))
     status_counts = defaultdict(int)
-    
-    # Containers for all trend periods
-    due_date_groups = defaultdict(list)  # key: date object → list of 1/0 (on-time or not)
-    
+    due_date_groups = defaultdict(list)  # date → list of 1/0 (on-time)
+
     for c in components:
         coach = c.Coach_no or "Unknown"
-        status = (c.Component_status or "Unknown").strip().title()
-        
-        # Normalize status
-        if status.lower() in ['pending', 'ordered', 'in progress']:
-            display_status = "Pending"
-        elif status.lower() in ['completed', 'delivered', 'done']:
-            display_status = "Completed"
-        elif c.CTED_due_date:
-            try:
-                due_date_pd = pd.to_datetime(c.CTED_due_date)
-                if due_date_pd.date() < today and status.lower() not in ['completed', 'delivered']:
-                    display_status = "Overdue"
-                else:
-                    display_status = status
-            except:
-                display_status = status
-        else:
-            display_status = status
-        
-        coach_data[coach][display_status] += 1
-        status_counts[display_status] += 1
-        
-        # Collect on-time data for trends (only if due date exists)
+        status = c.display_status  # ← derived status
+        coach_data[coach][status] += 1
+        status_counts[status] += 1
+
+        # On-time data for trends (only if due date exists)
         if c.CTED_due_date:
             try:
-                due_date = pd.to_datetime(c.CTED_due_date).date()
-                is_completed = status.lower() in ['completed', 'delivered', 'done']
-                # On-time = completed AND due date has passed (or is today)
-                is_on_time = 1 if (is_completed and due_date <= today) else 0
+                due_date = datetime.strptime(c.CTED_due_date.strip(), "%Y-%m-%d").date()
+                is_on_time = 1 if status in ["Delivered", "Completed"] else 0
                 due_date_groups[due_date].append(is_on_time)
             except:
                 pass
-    
-    # === Coach & Overall Charts + Drill-Down Data ===
+
+    # === Coach Chart Data ===
     chart_data = []
     total_coaches = len(coach_data)
-
     for coach, counts in coach_data.items():
-        # Get all components for this coach
         coach_components = [c for c in components if (c.Coach_no or "Unknown") == coach]
         total = len(coach_components)
-
-        # Prepare component details for drill-down modal
-        component_details = []
-        for c in coach_components:
-            lead_time = c.Lead_time or 0
-            due_date_str = c.CTED_due_date
-            due_date = pd.to_datetime(due_date_str).date() if due_date_str else None
-
-            component_details.append({
-                "Item_no": c.Item_no or "",
-                "Component": c.Component or "",
-                "Supplier": c.Supplier or "",
-                "Quantity": c.Quantity or "",
-                "Lead_time": lead_time,
-                "CTED_due_date": due_date_str or "",
-                "Component_status": c.Component_status or ""
-            })
+        component_details = [{
+            "Item_no": c.Item_no or "",
+            "Component": c.Component or "",
+            "Supplier": c.Supplier or "",
+            "Quantity": c.Quantity or "",
+            "Lead_time": c.Lead_time,
+            "CTED_due_date": c.CTED_due_date or "",
+            "display_status": c.display_status
+        } for c in coach_components]
 
         chart_data.append({
             "coach": coach,
             "labels": list(counts.keys()),
             "values": list(counts.values()),
             "total": total,
-            "components": component_details  # For drill-down modal
+            "components": component_details
         })
 
-    # Overall summary
+    # Overall chart
     overall_chart = {
         "labels": list(status_counts.keys()),
         "values": list(status_counts.values()),
         "total": len(components)
     }
 
-    # === SUPPLIER PERFORMANCE TRENDS (Monthly) ===
+    # === Supplier Trends (monthly on-time %) ===
     supplier_trends = defaultdict(lambda: defaultdict(list))
-
     for c in components:
         if c.CTED_due_date and c.Supplier:
             try:
-                due_date = pd.to_datetime(c.CTED_due_date).date()
+                due_date = datetime.strptime(c.CTED_due_date.strip(), "%Y-%m-%d").date()
                 supplier = c.Supplier.strip() or "Unknown"
-                is_completed = (c.Component_status or "").lower() in ['completed', 'delivered', 'done']
-                is_on_time = 1 if (is_completed and due_date <= today) else 0
                 month_key = due_date.strftime("%Y-%m")
+                is_on_time = 1 if c.display_status in ["Delivered", "Completed"] else 0
                 supplier_trends[supplier][month_key].append(is_on_time)
             except:
                 pass
@@ -836,7 +1077,7 @@ def analytics():
             "values": values
         })
 
-    # === CURRENT PERIOD ALERT (<90%) ===
+    # === Current period alert (<90% on-time) ===
     current_month_key = today.strftime("%Y-%m")
     current_rates = []
     for d, rates in due_date_groups.items():
@@ -858,7 +1099,7 @@ def analytics():
     # === WEEKLY: Last 12 weeks ===
     weekly_labels = []
     weekly_values = []
-    for week_offset in range(11, -1, -1):  # Oldest to newest
+    for week_offset in range(11, -1, -1):
         week_monday = today - timedelta(days=today.weekday()) - timedelta(weeks=week_offset)
         week_sunday = week_monday + timedelta(days=6)
         label = f"{week_monday.strftime('%b %d')}-{week_sunday.strftime('%d')}"
@@ -888,7 +1129,6 @@ def analytics():
         pct = sum(month_rates) / len(month_rates) * 100 if month_rates else 0
         monthly_values.append(round(pct, 1))
 
-    # === Render Template ===
     return render_template("analytics.html",
                            chart_data=chart_data,
                            overall_chart=overall_chart,
@@ -904,6 +1144,8 @@ def analytics():
                            supplier_chart_data=supplier_chart_data,
                            current_period_pct=current_period_pct,
                            show_alert=show_alert)
+
+
 
 # ===============================================================
 # CALENDAR + EVENTS API
