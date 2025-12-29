@@ -1,100 +1,116 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Dec 23 11:13:04 2025
+
+@author: pmmto
+"""
+
 {% extends "base.html" %}
 {% block content %}
+<h2><i class="fas fa-history"></i> Audit Log History</h2>
 
-<h3 class="fw-bold mb-3">Audit Logs</h3>
-
-<div class="card shadow-sm mb-4">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-striped table-hover mb-0">
-                <thead class="table-dark">
-                    <tr>
-                        <th>When</th>
-                        <th>User</th>
-                        <th>Action</th>
-                        <th>Target</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    {% for log in logs.items %}
-                    <tr>
-                        <td>{{ log.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-                        <td>{{ log.username }}</td>
-                        <td>{{ log.action }}</td>
-                        <td>{{ log.target }}</td>
-
-                        <td>
-                            {% if log.old_value or log.new_value %}
-                                <a href="#log-{{ log.id }}" data-bs-toggle="collapse">View changes</a>
-                            {% else %}
-                                —
-                            {% endif %}
-                        </td>
-                    </tr>
-
-                    {% if log.old_value or log.new_value %}
-                    <tr id="log-{{ log.id }}" class="collapse">
-                        <td colspan="5">
-                            <div class="p-3 bg-light border rounded">
-
-                                {% set old = log.old_value_json %}
-                                {% set new = log.new_value_json %}
-
-                                <h6 class="fw-bold mb-2">Field Changes</h6>
-
-                                <table class="table table-sm table-bordered">
-                                    <thead class="table-secondary">
-                                        <tr>
-                                            <th>Field</th>
-                                            <th>Old Value</th>
-                                            <th>New Value</th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody>
-                                        {% for field, old_val in old.items() %}
-                                            <tr>
-                                                <td>{{ field }}</td>
-                                                <td class="bg-danger-subtle">{{ old_val }}</td>
-                                                <td class="bg-success-subtle">{{ new.get(field) }}</td>
-                                            </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-
-                            </div>
-                        </td>
-                    </tr>
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead class="thead-dark">
+            <tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>Changes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs.items %}
+            <tr>
+                <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td><strong>{{ log.username }}</strong></td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.target }}</td>
+                <td>
+                    {% set changes = log.get_changes() %}
+                    {% if changes %}
+                        <ul class="mb-0 pl-3">
+                        {% for field, vals in changes.items() %}
+                            <li>
+                                <strong>{{ field }}</strong>:
+                                <span class="text-danger">{{ vals.old|default("—", true) }}</span>
+                                →
+                                <span class="text-success">{{ vals.new }}</span>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                    {% else %}
+                        <em class="text-muted">No changes recorded</em>
                     {% endif %}
-                    {% endfor %}
-                </tbody>
-
-            </table>
-        </div>
-    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center">No audit logs yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
 <!-- Pagination -->
+{% if logs.has_prev or logs.has_next %}
 <nav>
-    <ul class="pagination">
+    <ul class="pagination justify-content-center">
         {% if logs.has_prev %}
-        <li class="page-item">
-            <a class="page-link" href="{{ url_for('audit_logs', page=logs.prev_num) }}">Previous</a>
-        </li>
+            <li class="page-item"><a class="page-link" href="{{ url_for('audit_logs', page=logs.prev_num) }}">Previous</a></li>
         {% endif %}
-
-        <li class="page-item active">
-            <span class="page-link">Page {{ logs.page }} of {{ logs.pages }}</span>
-        </li>
-
+        {% for page_num in logs.iter_pages() %}
+            {% if page_num %}
+                {% if page_num == logs.page %}
+                    <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                {% else %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('audit_logs', page=page_num) }}">{{ page_num }}</a></li>
+                {% endif %}
+            {% else %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
         {% if logs.has_next %}
-        <li class="page-item">
-            <a class="page-link" href="{{ url_for('audit_logs', page=logs.next_num) }}">Next</a>
-        </li>
+            <li class="page-item"><a class="page-link" href="{{ url_for('audit_logs', page=logs.next_num) }}">Next</a></li>
         {% endif %}
     </ul>
 </nav>
+{% endif %}
+{% endblock %}
 
+
+{% block scripts %}
+<script>
+// Live auto-refresh every 30 seconds (30000 ms)
+setInterval(function() {
+    fetch(window.location.href + '?_=' + new Date().getTime())  // Cache-buster to avoid stale responses
+        .then(response => response.text())
+        .then(html => {
+            // Parse the new HTML and replace only the body content
+            const parser = new DOMParser();
+            const newDoc = parser.parseFromString(html, 'text/html');
+            document.body.innerHTML = newDoc.body.innerHTML;
+            
+            // Re-attach event listeners if needed (optional improvement below)
+            // For now, full replace works fine for simple pages
+        })
+        .catch(err => console.error('Refresh failed:', err));
+}, 30000);
+
+// Optional: Show a small live indicator
+document.addEventListener('DOMContentLoaded', function() {
+    const indicator = document.createElement('div');
+    indicator.innerHTML = '🔴 Live (auto-refresh every 30s)';
+    indicator.style.position = 'fixed';
+    indicator.style.bottom = '10px';
+    indicator.style.right = '10px';
+    indicator.style.background = 'rgba(0,0,0,0.7)';
+    indicator.style.color = 'white';
+    indicator.style.padding = '8px 12px';
+    indicator.style.borderRadius = '20px';
+    indicator.style.fontSize = '12px';
+    indicator.style.zIndex = '1000';
+    document.body.appendChild(indicator);
+});
+</script>
 {% endblock %}
