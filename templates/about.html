@@ -1,0 +1,46 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Jan  4 12:30:09 2026
+
+@author: pmmto
+"""
+
+{% extends "base.html" %}
+{% block title %}About HAESSA Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <h2 class="mb-4">HAESSA Component Delivery Dashboard</h2>
+
+      <p class="lead">A full-stack web application for tracking and visualizing component delivery lifecycles across coaches in a manufacturing/assembly context.</p>
+
+      <hr class="my-4">
+
+      <h4>Key Features</h4>
+      <ul class="list-group list-group-flush mb-4">
+        <li class="list-group-item"><strong>Component Management</strong> – Full CRUD with audit trail</li>
+        <li class="list-group-item"><strong>Derived Status Logic</strong> – Intelligent status based on dates (Delivered, Haessa to order, CTED to place order, Overdue, Unknown, etc.)</li>
+        <li class="list-group-item"><strong>Dashboard</strong> – Search, status filter, overdue alerts, sortable table</li>
+        <li class="list-group-item"><strong>Gantt Chart</strong> – Timeline visualization with Today marker</li>
+        <li class="list-group-item"><strong>Analytics</strong> – Coach breakdown, supplier trends, on-time performance charts</li>
+        <li class="list-group-item"><strong>Security</strong> – Role-based access (admin/editor/viewer)</li>
+      </ul>
+
+      <h4>Technology Stack</h4>
+      <ul class="list-group list-group-flush mb-4">
+        <li class="list-group-item">Backend: Python + Flask + SQLAlchemy</li>
+        <li class="list-group-item">Database: SQLite (local) / PostgreSQL (Render)</li>
+        <li class="list-group-item">Frontend: Bootstrap 5 + Frappe Gantt</li>
+        <li class="list-group-item">Deployment: Render.com (GitHub auto-deploy)</li>
+      </ul>
+
+      <p class="text-muted mt-5">
+        Built with ❤️ by Paul Mmtoni Barasa<br>
+        © 2025 HAESSA Dashboard
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
