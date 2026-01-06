@@ -492,6 +492,7 @@ def add_globals():
 
 
 @login_required
+@role_required("admin", "editor", "viewer")
 @app.route("/", methods=["GET"])
 @app.route("/home", methods=["GET"])
 def home():
@@ -1399,3 +1400,4 @@ def about():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
