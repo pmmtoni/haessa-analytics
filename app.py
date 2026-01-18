@@ -1,4 +1,3 @@
-
 # ================================================================
 #  HAESSA Component Dashboard â€“ PostgreSQL/SQLite compatible build
 # ================================================================
@@ -223,7 +222,7 @@ def role_required(*roles):
 
 
 
-#from datetime import date
+from datetime import date
 
 def derive_component_status(c):
     """
@@ -308,7 +307,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 #from datetime import date, timedelta
 from email_utils import send_email
 
-#from datetime import date, timedelta
+from datetime import date, timedelta
 
 def send_daily_summary():
     today = date.today()
@@ -396,10 +395,11 @@ def add_globals():
 # ---------------------------------------------------------------
 # ROUTES â€” HOME PAGE
 # ---------------------------------------------------------------
-#from datetime import date, datetime, timedelta  # Add these imports at the top of app.py if missing
+
+# Home/Dashboard — MUST require login
 
 @login_required
-@role_required("admin", "editor", "viewer")
+#@role_required("admin", "editor", "viewer")
 @app.route("/", methods=["GET"])
 @app.route("/home", methods=["GET"])
 def home():
