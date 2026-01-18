@@ -307,7 +307,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 #from datetime import date, timedelta
 from email_utils import send_email
 
-from datetime import date, timedelta
+#from datetime import date, timedelta
 
 def send_daily_summary():
     today = date.today()
@@ -391,9 +391,9 @@ scheduler.start()
 def add_globals():
     return {"datetime": datetime}
 
-
-
-
+#========================================
+# Home/Dashboard — MUST require login
+# =======================================
 @login_required
 @role_required("admin", "editor", "viewer")
 @app.route("/", methods=["GET"])
@@ -690,205 +690,11 @@ def favicon():
 #  ANALYTICS ROUTE
 # ===============================================================
 
-# import calendar
-
-# @app.route("/analytics")
-# @login_required
-# @role_required("admin", "editor")
-# def analytics():
-#     components = Components.query.all()
-    
-#     today = date.today()
-#     generated_by = current_user.username
-#     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    
-#     # Group by Coach_no
-#     coach_data = defaultdict(lambda: defaultdict(int))
-#     status_counts = defaultdict(int)
-    
-#     # Containers for all trend periods
-#     due_date_groups = defaultdict(list)  # key: date object → list of 1/0 (on-time or not)
-    
-#     for c in components:
-#         coach = c.Coach_no or "Unknown"
-#         status = (c.Component_status or "Unknown").strip().title()
-        
-#         # Normalize status
-#         if status.lower() in ['pending', 'ordered', 'in progress']:
-#             display_status = "Pending"
-#         elif status.lower() in ['completed', 'delivered', 'done']:
-#             display_status = "Completed"
-#         elif c.CTED_due_date:
-#             try:
-#                 due_date_pd = pd.to_datetime(c.CTED_due_date)
-#                 if due_date_pd.date() < today and status.lower() not in ['completed', 'delivered']:
-#                     display_status = "Overdue"
-#                 else:
-#                     display_status = status
-#             except:
-#                 display_status = status
-#         else:
-#             display_status = status
-        
-#         coach_data[coach][display_status] += 1
-#         status_counts[display_status] += 1
-        
-#         # Collect on-time data for trends (only if due date exists)
-#         if c.CTED_due_date:
-#             try:
-#                 due_date = pd.to_datetime(c.CTED_due_date).date()
-#                 is_completed = status.lower() in ['completed', 'delivered', 'done']
-#                 # On-time = completed AND due date has passed (or is today)
-#                 is_on_time = 1 if (is_completed and due_date <= today) else 0
-#                 due_date_groups[due_date].append(is_on_time)
-#             except:
-#                 pass
-    
-#     # === Coach & Overall Charts + Drill-Down Data ===
-#     chart_data = []
-#     total_coaches = len(coach_data)
-
-#     for coach, counts in coach_data.items():
-#         # Get all components for this coach
-#         coach_components = [c for c in components if (c.Coach_no or "Unknown") == coach]
-#         total = len(coach_components)
-
-#         # Prepare component details for drill-down modal
-#         component_details = []
-#         for c in coach_components:
-#             lead_time = c.Lead_time or 0
-#             due_date_str = c.CTED_due_date
-#             due_date = pd.to_datetime(due_date_str).date() if due_date_str else None
-
-#             component_details.append({
-#                 "Item_no": c.Item_no or "",
-#                 "Component": c.Component or "",
-#                 "Supplier": c.Supplier or "",
-#                 "Quantity": c.Quantity or "",
-#                 "Lead_time": lead_time,
-#                 "CTED_due_date": due_date_str or "",
-#                 "Component_status": c.Component_status or ""
-#             })
-
-#         chart_data.append({
-#             "coach": coach,
-#             "labels": list(counts.keys()),
-#             "values": list(counts.values()),
-#             "total": total,
-#             "components": component_details  # For drill-down modal
-#         })
-
-#     # Overall summary
-#     overall_chart = {
-#         "labels": list(status_counts.keys()),
-#         "values": list(status_counts.values()),
-#         "total": len(components)
-#     }
-
-#     # === SUPPLIER PERFORMANCE TRENDS (Monthly) ===
-#     supplier_trends = defaultdict(lambda: defaultdict(list))
-
-#     for c in components:
-#         if c.CTED_due_date and c.Supplier:
-#             try:
-#                 due_date = pd.to_datetime(c.CTED_due_date).date()
-#                 supplier = c.Supplier.strip() or "Unknown"
-#                 is_completed = (c.Component_status or "").lower() in ['completed', 'delivered', 'done']
-#                 is_on_time = 1 if (is_completed and due_date <= today) else 0
-#                 month_key = due_date.strftime("%Y-%m")
-#                 supplier_trends[supplier][month_key].append(is_on_time)
-#             except:
-#                 pass
-
-#     supplier_chart_data = []
-#     suppliers = sorted(supplier_trends.keys())
-#     for supplier in suppliers:
-#         values = []
-#         for i in range(11, -1, -1):
-#             month_date = today.replace(day=1) - pd.DateOffset(months=i)
-#             month_key = month_date.strftime("%Y-%m")
-#             rates = supplier_trends[supplier].get(month_key, [])
-#             pct = round(sum(rates) / len(rates) * 100, 1) if rates else 0
-#             values.append(pct)
-#         supplier_chart_data.append({
-#             "supplier": supplier,
-#             "values": values
-#         })
-
-#     # === CURRENT PERIOD ALERT (<90%) ===
-#     current_month_key = today.strftime("%Y-%m")
-#     current_rates = []
-#     for d, rates in due_date_groups.items():
-#         if d.strftime("%Y-%m") == current_month_key:
-#             current_rates.extend(rates)
-#     current_period_pct = round(sum(current_rates) / len(current_rates) * 100, 1) if current_rates else 100
-#     show_alert = current_period_pct < 90
-
-#     # === DAILY: Last 30 days ===
-#     daily_labels = []
-#     daily_values = []
-#     for offset in range(29, -1, -1):
-#         d = today - timedelta(days=offset)
-#         daily_labels.append(d.strftime("%b %d"))
-#         rates = due_date_groups.get(d, [])
-#         pct = sum(rates) / len(rates) * 100 if rates else 0
-#         daily_values.append(round(pct, 1))
-
-#     # === WEEKLY: Last 12 weeks ===
-#     weekly_labels = []
-#     weekly_values = []
-#     for week_offset in range(11, -1, -1):  # Oldest to newest
-#         week_monday = today - timedelta(days=today.weekday()) - timedelta(weeks=week_offset)
-#         week_sunday = week_monday + timedelta(days=6)
-#         label = f"{week_monday.strftime('%b %d')}-{week_sunday.strftime('%d')}"
-#         weekly_labels.append(label)
-
-#         week_rates = []
-#         current = week_monday
-#         while current <= week_sunday:
-#             week_rates.extend(due_date_groups.get(current, []))
-#             current += timedelta(days=1)
-
-#         pct = sum(week_rates) / len(week_rates) * 100 if week_rates else 0
-#         weekly_values.append(round(pct, 1))
-
-#     # === MONTHLY: Last 12 months ===
-#     monthly_labels = []
-#     monthly_values = []
-#     for i in range(11, -1, -1):
-#         month_date = today.replace(day=1) - pd.DateOffset(months=i)
-#         monthly_labels.append(calendar.month_abbr[month_date.month])
-
-#         month_rates = []
-#         for d, rates in due_date_groups.items():
-#             if d.strftime("%Y-%m") == month_date.strftime("%Y-%m"):
-#                 month_rates.extend(rates)
-
-#         pct = sum(month_rates) / len(month_rates) * 100 if month_rates else 0
-#         monthly_values.append(round(pct, 1))
-
-#     # === Render Template ===
-#     return render_template("analytics.html",
-#                            chart_data=chart_data,
-#                            overall_chart=overall_chart,
-#                            total_coaches=total_coaches,
-#                            generated_by=generated_by,
-#                            generated_at=generated_at,
-#                            daily_labels=daily_labels,
-#                            daily_values=daily_values,
-#                            weekly_labels=weekly_labels,
-#                            weekly_values=weekly_values,
-#                            monthly_labels=monthly_labels,
-#                            monthly_values=monthly_values,
-#                            supplier_chart_data=supplier_chart_data,
-#                            current_period_pct=current_period_pct,
-#                            show_alert=show_alert)
-
 
 
 @app.route("/analytics")
 @login_required
-@role_required("admin", "editor")
+@role_required("admin", "editor", "viewer")
 def analytics():
     components = Components.query.all()
 
