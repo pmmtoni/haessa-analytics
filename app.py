@@ -398,10 +398,12 @@ def add_globals():
 
 # Home/Dashboard — MUST require login
 
-@login_required
-#@role_required("admin", "editor", "viewer")
-@app.route("/", methods=["GET"])
 @app.route("/home", methods=["GET"])
+@app.route("/", methods=["GET"])
+@login_required
+@role_required("admin", "editor", "viewer")
+#@app.route("/", methods=["GET"])
+#@app.route("/home", methods=["GET"])
 def home():
     search = request.args.get("search", "").strip()
     status_filter = request.args.get("status", "").strip()
