@@ -1,10 +1,72 @@
+# Python / Bytecode
 __pycache__/
 *.pyc
 *.pyo
-*.log
-.env
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
 venv/
 .venv/
-instance/
+env/
+ENV/
+
+# Environment / Secrets
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env.backup
+
+# Database (SQLite)
+components.db
+*.db
+*.sqlite3
+*.sqlite
+
+# Logs & temp files
+*.log
+*.logs
 tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~
+
+# OS / Editor files
 .DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Render / Deployment artifacts
+Procfile.lock
+render.yaml.lock
+build.sh.bak
+
+# Testing / Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.pytest_cache/
+
+# Jupyter / Notebooks (if you ever use them)
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Misc
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

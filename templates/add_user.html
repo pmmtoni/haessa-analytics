@@ -1,45 +1,25 @@
 {% extends "base.html" %}
+
 {% block content %}
+<h2>Add New User</h2>
 
-<div class="d-flex align-items-center mb-3">
-    <h3 class="mb-0 me-auto">Add New User</h3>
-</div>
-
-<div class="card shadow-sm">
-    <div class="card-body">
-
-        <form method="POST" action="{{ url_for('users_add') }}">
-            <div class="mb-3">
-                <label class="form-label fw-bold">Username</label>
-                <input type="text" name="username" class="form-control" required>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label fw-bold">Password</label>
-                <input type="password" name="password" class="form-control" required>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label fw-bold">Role</label>
-                <select name="role" class="form-select" required>
-                    <option value="viewer">Viewer</option>
-                    <option value="editor">Editor</option>
-                    <option value="admin">Admin</option>
-                </select>
-            </div>
-
-            <div class="d-flex justify-content-between mt-4">
-                <a href="{{ url_for('users') }}" class="btn btn-secondary">
-                    ← Back
-                </a>
-
-                <button type="submit" class="btn btn-success">
-                    ✔ Create User
-                </button>
-            </div>
-        </form>
-
+<form method="POST" action="{{ url_for('add_user') }}">  <!-- Fixed: Changed 'users_add' to 'add_user' -->
+    <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" class="form-control" id="username" name="username" required>
     </div>
-</div>
-
+    <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" class="form-control" id="password" name="password" required>
+    </div>
+    <div class="form-group">
+        <label for="role">Role</label>
+        <select class="form-control" id="role" name="role">
+            <option value="admin">Admin</option>
+            <option value="editor">Editor</option>
+            <option value="viewer" selected>Viewer</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Add User</button>
+</form>
 {% endblock %}
