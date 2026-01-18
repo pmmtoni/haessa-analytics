@@ -3,13 +3,6 @@
 A full-stack web application for tracking, managing, and visualizing component delivery lifecycles across coaches in a manufacturing/assembly environment.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-<p align="center">
-  <img src="https://via.placeholder.com/800x400.png?text=Dashboard+Screenshot" alt="Dashboard Overview" width="800"/>
-  <br><br>
-  <img src="https://via.placeholder.com/800x400.png?text=Gantt+Chart" alt="Gantt Chart" width="800"/>
-  <br><br>
-  <img src="https://via.placeholder.com/800x400.png?text=Analytics+Page" alt="Analytics Page" width="800"/>
-</p>
 
 ## Features
 
