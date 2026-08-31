@@ -1,5 +1,5 @@
 # ================================================================
-#  HAESSA Component Dashboard â€“ PostgreSQL/SQLite compatible build
+#  CTE Durban Component Dashboard â€“ PostgreSQL/SQLite compatible build
 # ================================================================
 
 
@@ -232,7 +232,7 @@ def derive_component_status(c):
     Rules (in priority order):
     - Delivered              → if HAESSA_delivery_date is not null
     - Being processed        → if HAESSA_order_date is not null
-    - Haessa to order        → if CTED_order_date is not null (but HAESSA_order_date is null)
+    - Investor to order        → if CTED_order_date is not null (but HAESSA_order_date is null)
     - CTED due date not provided → if CTED_due_date is null (but CTED_order_date exists)
     - Lead time not provided → if Lead_time is null (but CTED_order_date exists)
     - CTED to place order    → if CTED_order_date is null
@@ -254,10 +254,10 @@ def derive_component_status(c):
     if not is_empty_date(c.HAESSA_order_date):
         return "Being processed", missing
 
-    # 3. Haessa to order
+    # 3. Investor to order
     if not is_empty_date(c.CTED_order_date):
         if is_empty_date(c.HAESSA_order_date):
-            return "Haessa to order", missing
+            return "Investor to order", missing
 
     # 4. CTED due date not provided
     if not is_empty_date(c.CTED_order_date) and is_empty_date(c.CTED_due_date):
@@ -459,7 +459,7 @@ def home():
                            .all()
     db_status_list = sorted(set([s[0].strip().title() for s in db_statuses if s[0]]))
 
-    derived_statuses = ["Pending", "Ordered", "Overdue", "Delivered", "Unknown", "Haessa to order", "CTED to place order"]
+    derived_statuses = ["Pending", "Ordered", "Overdue", "Delivered", "Unknown", "Investor to order", "CTED to place order"]
     status_choices = sorted(set(db_status_list + derived_statuses))
 
     return render_template(
